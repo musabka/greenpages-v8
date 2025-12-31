@@ -1,0 +1,44 @@
+{
+  "name": "@greenpages/database",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prisma Database Schema for Green Pages",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "push": "prisma db push",
+    "seed": "tsx prisma/seeds/index.ts",
+    "seed:locations": "tsx prisma/seeds/locations.ts",
+    "seed:categories": "tsx prisma/seeds/categories.ts",
+    "seed:businesses": "tsx prisma/seeds/businesses.ts",
+    "studio": "prisma studio",
+    "build": "tsc",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^25.0.3",
+    "@types/uuid": "^11.0.0",
+    "prisma": "^5.22.0",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "uuid": "^13.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    }
+  }
+}

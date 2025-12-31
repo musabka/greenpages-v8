@@ -1,0 +1,207 @@
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": PostgreSQL database "greenpages", schema "public" at "localhost:5434"
+Drift detected: Your database schema is not in sync with your migration history.
+The following is a summary of the differences between the expected database schema given your migrations files, and the actual schema of the database.
+It should be understood as the set of changes to get from the expected schema to the actual schema.
+If you are running this the first time on an existing database, please make sure to read this documentation page:
+https://www.prisma.io/docs/guides/database/developing-with-prisma-migrate/troubleshooting-development
+[+] Added enums
+  - AdPosition
+  - AdStatus
+  - AdType
+  - BusinessStatus
+  - ContactType
+  - DayOfWeek
+  - MediaType
+  - NotificationType
+  - OtpPurpose
+  - ProductType
+  - ReviewStatus
+  - UserRole
+  - UserStatus
+  - VerificationStatus
+[+] Added tables
+  - activity_logs
+  - ad_cities
+  - ad_governorates
+  - ads
+  - business_branches
+  - business_categories
+  - business_contacts
+  - business_media
+  - business_persons
+  - business_products
+  - business_working_hours
+  - businesses
+  - categories
+  - cities
+  - districts
+  - governorates
+  - notifications
+  - pages
+  - password_resets
+  - phone_otps
+  - reviews
+  - sessions
+  - settings
+  - users
+[*] Changed the `activity_logs` table
+  [+] Added index on columns (action)
+  [+] Added index on columns (created_at)
+  [+] Added index on columns (entity_id)
+  [+] Added index on columns (entity)
+  [+] Added index on columns (user_id)
+  [+] Added foreign key on columns (user_id)
+[*] Changed the `ad_cities` table
+  [+] Added unique index on columns (ad_id, city_id)
+  [+] Added index on columns (ad_id)
+  [+] Added index on columns (city_id)
+  [+] Added foreign key on columns (ad_id)
+  [+] Added foreign key on columns (city_id)
+[*] Changed the `ad_governorates` table
+  [+] Added unique index on columns (ad_id, governorate_id)
+  [+] Added index on columns (ad_id)
+  [+] Added index on columns (governorate_id)
+  [+] Added foreign key on columns (ad_id)
+  [+] Added foreign key on columns (governorate_id)
+[*] Changed the `ads` table
+  [+] Added index on columns (business_id)
+  [+] Added index on columns (end_date)
+  [+] Added index on columns (position)
+  [+] Added index on columns (start_date)
+  [+] Added index on columns (status)
+  [+] Added index on columns (target_all_locations)
+  [+] Added index on columns (type)
+  [+] Added foreign key on columns (business_id)
+[*] Changed the `business_branches` table
+  [+] Added index on columns (business_id)
+  [+] Added index on columns (city_id)
+  [+] Added foreign key on columns (business_id)
+  [+] Added foreign key on columns (city_id)
+  [+] Added foreign key on columns (district_id)
+[*] Changed the `business_categories` table
+  [+] Added foreign key on columns (business_id)
+  [+] Added foreign key on columns (category_id)
+[*] Changed the `business_contacts` table
+  [+] Added index on columns (branch_id)
+  [+] Added index on columns (business_id)
+  [+] Added index on columns (type)
+  [+] Added foreign key on columns (branch_id)
+  [+] Added foreign key on columns (business_id)
+[*] Changed the `business_media` table
+  [+] Added index on columns (business_id)
+  [+] Added index on columns (type)
+  [+] Added foreign key on columns (business_id)
+[*] Changed the `business_persons` table
+  [+] Added index on columns (business_id)
+  [+] Added index on columns (user_id)
+  [+] Added foreign key on columns (business_id)
+  [+] Added foreign key on columns (user_id)
+[*] Changed the `business_products` table
+  [+] Added index on columns (business_id)
+  [+] Added index on columns (is_available)
+  [+] Added index on columns (is_featured)
+  [+] Added index on columns (type)
+  [+] Added foreign key on columns (business_id)
+[*] Changed the `business_working_hours` table
+  [+] Added index on columns (branch_id)
+  [+] Added unique index on columns (business_id, branch_id, day_of_week)
+  [+] Added index on columns (business_id)
+  [+] Added foreign key on columns (branch_id)
+  [+] Added foreign key on columns (business_id)
+[*] Changed the `businesses` table
+  [+] Added index on columns (agent_id)
+  [+] Added index on columns (average_rating)
+  [+] Added index on columns (city_id)
+  [+] Added index on columns (created_at)
+  [+] Added index on columns (district_id)
+  [+] Added index on columns (governorate_id)
+  [+] Added index on columns (is_active)
+  [+] Added index on columns (is_featured)
+  [+] Added index on columns (is_verified)
+  [+] Added index on columns (owner_id)
+  [+] Added index on columns (slug)
+  [+] Added unique index on columns (slug)
+  [+] Added index on columns (status)
+  [+] Added index on columns (verification_status)
+  [+] Added foreign key on columns (agent_id)
+  [+] Added foreign key on columns (city_id)
+  [+] Added foreign key on columns (created_by_id)
+  [+] Added foreign key on columns (district_id)
+  [+] Added foreign key on columns (governorate_id)
+  [+] Added foreign key on columns (owner_id)
+[*] Changed the `categories` table
+  [+] Added index on columns (is_active)
+  [+] Added index on columns (is_featured)
+  [+] Added index on columns (parent_id)
+  [+] Added index on columns (slug)
+  [+] Added unique index on columns (slug)
+  [+] Added foreign key on columns (parent_id)
+[*] Changed the `cities` table
+  [+] Added index on columns (governorate_id)
+  [+] Added index on columns (is_active)
+  [+] Added index on columns (slug)
+  [+] Added unique index on columns (slug)
+  [+] Added foreign key on columns (governorate_id)
+[*] Changed the `districts` table
+  [+] Added index on columns (city_id)
+  [+] Added index on columns (is_active)
+  [+] Added index on columns (slug)
+  [+] Added unique index on columns (slug)
+  [+] Added foreign key on columns (city_id)
+[*] Changed the `governorates` table
+  [+] Added index on columns (is_active)
+  [+] Added index on columns (slug)
+  [+] Added unique index on columns (slug)
+[*] Changed the `notifications` table
+  [+] Added index on columns (created_at)
+  [+] Added index on columns (is_read)
+  [+] Added index on columns (type)
+  [+] Added index on columns (user_id)
+  [+] Added foreign key on columns (user_id)
+[*] Changed the `pages` table
+  [+] Added index on columns (is_published)
+  [+] Added index on columns (slug)
+  [+] Added unique index on columns (slug)
+[*] Changed the `password_resets` table
+  [+] Added index on columns (email)
+  [+] Added index on columns (token)
+  [+] Added unique index on columns (token)
+[*] Changed the `phone_otps` table
+  [+] Added index on columns (phone, code)
+  [+] Added index on columns (phone)
+[*] Changed the `reviews` table
+  [+] Added index on columns (business_id)
+  [+] Added index on columns (created_at)
+  [+] Added index on columns (rating)
+  [+] Added index on columns (status)
+  [+] Added index on columns (user_id)
+  [+] Added foreign key on columns (business_id)
+  [+] Added foreign key on columns (user_id)
+[*] Changed the `sessions` table
+  [+] Added unique index on columns (refresh_token)
+  [+] Added index on columns (token)
+  [+] Added unique index on columns (token)
+Applying migration `20251231185359_add_business_views`
+Error: P3018foreign key on columns (user_id)
+A migration failed to apply. New migrations cannot be applied before the error is recovered from. Read more about how to resolve migration issues in a production database: https://pris.ly/d/migrate-resolve
+  [+] Added unique index on columns (key)
+Migration name: 20251231185359_add_business_views
+[*] Changed the `users` table
+Database error code: 42883ns (city_id)
+  [+] Added index on columns (district_id)
+Database error:ex on columns (email)
+ERROR: function uuid_generate_v4() does not exist
+HINT: No function matches the given name and argument types. You might need to add explicit type casts.ns (phone)
+  [+] Added unique index on columns (phone)
+Position:ed index on columns (role)
+ 40 -- CreateEnum on columns (status)
+ 41 CREATE TYPE "OtpPurpose" AS ENUM ('VERIFY_PHONE', 'RESET_PASSWORD', 'LOGIN');] Added foreign key on columns (district_id)
+ 42+] Added foreign key on columns (governorate_id)
+ 43 -- CreateTable
+ 44 CREATE TABLE "users" (blic" schema at "localhost:5434"
+ 45     "id" UUID NOT NULL DEFAULT uuid_generate_v4(),s
+DbError { severity: "ERROR", parsed_severity: Some(Error), code: SqlState(E42883), message: "function uuid_generate_v4() does not exist", detail: None, hint: Some("No function matches the given name and argument types. You might need to add explicit type casts."), position: Some(Original(1660)), where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("parse_func.c"), line: Some(629), routine: Some("ParseFuncOrColumn") }
+E:\greenpages-v8\packages\database:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "prisma" not found
