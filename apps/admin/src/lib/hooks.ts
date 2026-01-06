@@ -11,6 +11,8 @@ import {
   adApi,
   pageApi,
   settingsApi,
+  packageApi,
+  renewalsApi,
   Business,
   Category,
   Governorate,
@@ -20,6 +22,8 @@ import {
   Review,
   Ad,
   Page,
+  Package,
+  RenewalRecord,
 } from './api';
 import toast from 'react-hot-toast';
 
@@ -53,6 +57,7 @@ export function useBusinesses(params?: {
   status?: string;
   categoryId?: string;
   governorateId?: string;
+  ownerStatus?: 'unclaimed' | 'claimed' | 'verified' | 'all';
 }) {
   return useQuery({
     queryKey: ['businesses', params],
@@ -386,7 +391,10 @@ export function useCreateUser() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast.success('تم إضافة المستخدم بنجاح');
     },
-    onError: () => toast.error('فشل في إضافة المستخدم'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'فشل في إضافة المستخدم';
+      toast.error(msg);
+    },
   });
 }
 
@@ -625,5 +633,257 @@ export function useUpdateSettings() {
       toast.success('تم حفظ الإعدادات بنجاح');
     },
     onError: () => toast.error('فشل في حفظ الإعدادات'),
+  });
+}
+
+// Package Hooks
+export function usePackages(params?: { page?: number; limit?: number; status?: string }) {
+  return useQuery({
+    queryKey: ['packages', params],
+    queryFn: () => packageApi.getAll(params).then((res) => res.data),
+  });
+}
+
+export function usePackage(id: string) {
+  return useQuery({
+    queryKey: ['packages', id],
+    queryFn: () => packageApi.getById(id).then((res) => res.data),
+    enabled: !!id,
+  });
+}
+
+export function useCreatePackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<Package>) => packageApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['packages'] });
+      toast.success('تم إضافة الباقة بنجاح');
+    },
+    onError: () => toast.error('فشل في إضافة الباقة'),
+  });
+}
+
+export function useUpdatePackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Package> }) =>
+      packageApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['packages'] });
+      toast.success('تم تحديث الباقة بنجاح');
+    },
+    onError: () => toast.error('فشل في تحديث الباقة'),
+  });
+}
+
+export function useDeletePackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => packageApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['packages'] });
+      toast.success('تم حذف الباقة بنجاح');
+    },
+    onError: () => toast.error('فشل في حذف الباقة'),
+  });
+}
+
+export function useSetDefaultPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => packageApi.setDefault(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['packages'] });
+      toast.success('تم تعيين الباقة الافتراضية بنجاح');
+    },
+    onError: () => toast.error('فشل في تعيين الباقة الافتراضية'),
+  });
+}
+
+export function useBusinessPackage(businessId: string) {
+  return useQuery({
+    queryKey: ['business-package', businessId],
+    queryFn: () => packageApi.getBusinessPackage(businessId).then((res) => res.data),
+    enabled: !!businessId,
+  });
+}
+
+export function useAssignPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { businessId: string; packageId: string; durationDays?: number; customExpiryDate?: string }) =>
+      packageApi.assignToBusiness(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['business-package'] });
+      queryClient.invalidateQueries({ queryKey: ['businesses'] });
+      toast.success('تم تعيين الباقة بنجاح');
+    },
+    onError: () => toast.error('فشل في تعيين الباقة'),
+  });
+}
+
+// ============================================
+// Renewal Hooks - متابعة التجديدات
+// ============================================
+
+export function useRenewals(params?: {
+  status?: string;
+  agentId?: string;
+  priority?: number;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  limit?: number;
+}) {
+  return useQuery({
+    queryKey: ['renewals', params],
+    queryFn: () => renewalsApi.getAll(params).then((res) => res.data),
+  });
+}
+
+export function useRenewal(id: string) {
+  return useQuery({
+    queryKey: ['renewals', id],
+    queryFn: () => renewalsApi.getById(id).then((res) => res.data),
+    enabled: !!id,
+  });
+}
+
+export function useRenewalStatistics(agentId?: string) {
+  return useQuery({
+    queryKey: ['renewals', 'statistics', agentId],
+    queryFn: () => renewalsApi.getStatistics(agentId).then((res) => res.data),
+  });
+}
+
+export function useAgentPerformance(agentId: string, fromDate?: string, toDate?: string) {
+  return useQuery({
+    queryKey: ['renewals', 'agent-performance', agentId, fromDate, toDate],
+    queryFn: () => renewalsApi.getAgentPerformance(agentId, fromDate, toDate).then((res) => res.data),
+    enabled: !!agentId,
+  });
+}
+
+export function useCreateRenewal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      businessId: string;
+      assignedAgentId?: string;
+      priority?: number;
+      internalNotes?: string;
+    }) => renewalsApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['renewals'] });
+      toast.success('تم إنشاء سجل التجديد بنجاح');
+    },
+    onError: () => toast.error('فشل في إنشاء سجل التجديد'),
+  });
+}
+
+export function useAssignRenewalAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, agentId }: { id: string; agentId: string }) =>
+      renewalsApi.assignAgent(id, agentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['renewals'] });
+      toast.success('تم تعيين المندوب بنجاح');
+    },
+    onError: () => toast.error('فشل في تعيين المندوب'),
+  });
+}
+
+export function useBulkAssignRenewalAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ renewalRecordIds, agentId }: { renewalRecordIds: string[]; agentId: string }) =>
+      renewalsApi.bulkAssignAgent(renewalRecordIds, agentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['renewals'] });
+      toast.success('تم تعيين المندوب للمجموعة بنجاح');
+    },
+    onError: () => toast.error('فشل في تعيين المندوب'),
+  });
+}
+
+export function useUpdateRenewalStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { status: string; notes?: string; nextFollowUpDate?: string } }) =>
+      renewalsApi.updateStatus(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['renewals'] });
+      toast.success('تم تحديث الحالة بنجاح');
+    },
+    onError: () => toast.error('فشل في تحديث الحالة'),
+  });
+}
+
+export function useAddRenewalContact() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      renewalRecordId: string;
+      contactMethod: string;
+      contactDate: string;
+      duration?: number;
+      outcome?: string;
+      notes?: string;
+      visitAddress?: string;
+      visitLatitude?: number;
+      visitLongitude?: number;
+      nextContactDate?: string;
+    }) => renewalsApi.addContact(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['renewals'] });
+      queryClient.invalidateQueries({ queryKey: ['renewals', variables.renewalRecordId] });
+      toast.success('تم تسجيل التواصل بنجاح');
+    },
+    onError: () => toast.error('فشل في تسجيل التواصل'),
+  });
+}
+
+export function useRenewalContacts(renewalRecordId: string) {
+  return useQuery({
+    queryKey: ['renewals', renewalRecordId, 'contacts'],
+    queryFn: () => renewalsApi.getContacts(renewalRecordId).then((res) => res.data),
+    enabled: !!renewalRecordId,
+  });
+}
+
+export function useProcessRenewalDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: {
+      id: string;
+      data: {
+        decision: string;
+        notes?: string;
+        newPackageId?: string;
+        customExpiryDate?: string;
+        durationDays?: number;
+        postponeUntil?: string;
+      };
+    }) => renewalsApi.processDecision(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['renewals'] });
+      queryClient.invalidateQueries({ queryKey: ['business-package'] });
+      toast.success('تم معالجة القرار بنجاح');
+    },
+    onError: () => toast.error('فشل في معالجة القرار'),
+  });
+}
+
+export function useGenerateRenewals() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => renewalsApi.generate(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['renewals'] });
+      toast.success('تم إنشاء سجلات التجديد بنجاح');
+    },
+    onError: () => toast.error('فشل في إنشاء سجلات التجديد'),
   });
 }

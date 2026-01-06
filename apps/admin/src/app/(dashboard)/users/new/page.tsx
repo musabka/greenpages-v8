@@ -14,7 +14,7 @@ export default function NewUserPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'SUPER_ADMIN' | 'ADMIN' | 'MODERATOR' | 'AGENT' | 'USER'>('USER');
+  const [role, setRole] = useState<'ADMIN' | 'SUPERVISOR' | 'GOVERNORATE_MANAGER' | 'AGENT' | 'BUSINESS' | 'USER'>('USER');
   const [isActive, setIsActive] = useState(true);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [password, setPassword] = useState('');
@@ -22,6 +22,10 @@ export default function NewUserPage() {
   const [governorateId, setGovernorateId] = useState('');
   const [cityId, setCityId] = useState('');
   const [districtId, setDistrictId] = useState('');
+  const [managedGovernorateIds, setManagedGovernorateIds] = useState<string[]>([]);
+  const [companyCommissionRate, setCompanyCommissionRate] = useState<string>('15');
+  const [agentSalary, setAgentSalary] = useState<string>('0');
+  const [agentCommission, setAgentCommission] = useState<string>('10');
 
   // جلب بيانات المواقع
   const { data: governoratesData } = useGovernorates();
@@ -46,6 +50,7 @@ export default function NewUserPage() {
     firstName.trim() &&
       lastName.trim() &&
       email.trim() &&
+      phone.trim() &&
       password.length >= 8 &&
       password === confirmPassword
   );
@@ -57,7 +62,7 @@ export default function NewUserPage() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim().toLowerCase(),
-        phone: phone.trim() || undefined,
+        phone: phone.trim(),
         role,
         isActive,
         isEmailVerified,
@@ -65,6 +70,12 @@ export default function NewUserPage() {
         governorateId: governorateId || undefined,
         cityId: cityId || undefined,
         districtId: districtId || undefined,
+        managedGovernorateIds: (role === 'GOVERNORATE_MANAGER' || role === 'AGENT') && managedGovernorateIds.length > 0 
+          ? managedGovernorateIds 
+          : undefined,
+        companyCommissionRate: role === 'GOVERNORATE_MANAGER' ? Number(companyCommissionRate) : undefined,
+        agentSalary: role === 'AGENT' ? Number(agentSalary) : undefined,
+        agentCommission: role === 'AGENT' ? Number(agentCommission) : undefined,
       });
       router.push('/users');
     } catch {
@@ -216,12 +227,21 @@ export default function NewUserPage() {
                   الدور <span className="text-red-500">*</span>
                 </label>
                 <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)}>
-                  <option value="SUPER_ADMIN">مدير عام</option>
-                  <option value="ADMIN">مدير</option>
-                  <option value="MODERATOR">مشرف</option>
-                  <option value="AGENT">وكيل</option>
-                  <option value="USER">مستخدم</option>
+                  <option value="ADMIN">المدير - كامل الصلاحيات</option>
+                  <option value="SUPERVISOR">المشرف - كل شيء ما عدا الإعدادات التقنية</option>
+                  <option value="GOVERNORATE_MANAGER">مدير محافظة - يدير محافظات محددة</option>
+                  <option value="AGENT">المندوب - جمع البيانات الميدانية</option>
+                  <option value="BUSINESS">مالك نشاط - يدير نشاطه التجاري</option>
+                  <option value="USER">مستخدم - المستخدم العادي</option>
                 </select>
+                <p className="text-xs text-gray-500 mt-2">
+                  {role === 'ADMIN' && 'يملك كامل الصلاحيات على النظام بما فيها الإعدادات التقنية'}
+                  {role === 'SUPERVISOR' && 'يملك جميع الصلاحيات ما عدا الإعدادات التقنية والباقات'}
+                  {role === 'GOVERNORATE_MANAGER' && 'يدير الأنشطة والمندوبين في محافظات محددة فقط'}
+                  {role === 'AGENT' && 'مسؤول جمع البيانات الميدانية ويكسب عمولة على الاشتراكات'}
+                  {role === 'BUSINESS' && 'يدير نشاطه التجاري وفروعه ومنتجاته'}
+                  {role === 'USER' && 'يتصفح الموقع ويكتب التقييمات'}
+                </p>
               </div>
               <div className="flex items-center justify-between py-2">
                 <label className="text-gray-700">نشط</label>
@@ -256,6 +276,7 @@ export default function NewUserPage() {
               <h2 className="font-bold text-gray-900">الموقع الجغرافي</h2>
             </div>
             <div className="card-body space-y-4">
+              <p className="text-xs text-gray-500 mb-4">العنوان الشخصي للمستخدم (اختياري)</p>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   المحافظة
@@ -305,6 +326,127 @@ export default function NewUserPage() {
               </div>
             </div>
           </div>
+
+          {/* Managed Governorates - For GOVERNORATE_MANAGER and AGENT */}
+          {(role === 'GOVERNORATE_MANAGER' || role === 'AGENT') && (
+            <div className="card">
+              <div className="card-header flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-blue-600" />
+                <h2 className="font-bold text-gray-900">
+                  {role === 'GOVERNORATE_MANAGER' ? 'المحافظات المُدارة' : 'المحافظات المخصصة'}
+                  {' '}<span className="text-red-500">*</span>
+                </h2>
+              </div>
+              <div className="card-body space-y-6">
+                {/* Company Commission Rate - Only for Governorate Manager */}
+                {role === 'GOVERNORATE_MANAGER' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      نسبة الصفحات الخضراء (المركز الرئيسي) %
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={companyCommissionRate}
+                        onChange={(e) => setCompanyCommissionRate(e.target.value)}
+                        className="input pl-10"
+                        placeholder="15"
+                      />
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">
+                        %
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      النسبة المئوية التي سيتم اقتطاعها من الدخل الإجمالي للمحافظة لصالح المركز الرئيسي.
+                    </p>
+                  </div>
+                )}
+
+                {/* Agent Salary and Commission - Only for Agent */}
+                {role === 'AGENT' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        الراتب الشهري الأساسي (ل.س)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={agentSalary}
+                        onChange={(e) => setAgentSalary(e.target.value)}
+                        className="input"
+                        placeholder="0"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        الراتب الشهري الثابت للمندوب بالليرة السورية.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        نسبة العمولة %
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={agentCommission}
+                          onChange={(e) => setAgentCommission(e.target.value)}
+                          className="input pl-10"
+                          placeholder="10"
+                        />
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">
+                          %
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        نسبة العمولة التي سيحصل عليها المندوب من كل اشتراك يقوم بجلبه.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {role === 'GOVERNORATE_MANAGER' 
+                      ? 'اختر المحافظات التي سيكون هذا المدير مسؤولاً عنها'
+                      : 'اختر المحافظات التي يمكن للمندوب العمل فيها وإضافة أنشطة تجارية'}
+                  </p>
+                  <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                    {governorates.map((gov: any) => (
+                      <label
+                        key={gov.id}
+                        className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={managedGovernorateIds.includes(gov.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setManagedGovernorateIds([...managedGovernorateIds, gov.id]);
+                            } else {
+                              setManagedGovernorateIds(managedGovernorateIds.filter(id => id !== gov.id));
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-medium text-gray-700">
+                          {gov.nameAr}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  {managedGovernorateIds.length > 0 && (
+                    <p className="text-sm text-blue-600 mt-2">
+                      تم اختيار {managedGovernorateIds.length} محافظة
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

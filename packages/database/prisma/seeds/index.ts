@@ -7,6 +7,7 @@ import { PrismaClient } from '@prisma/client';
 import { seedLocations } from './locations';
 import { seedCategories } from './categories';
 import { seedBusinesses } from './businesses';
+import { seedPackages } from './packages';
 import { UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -26,7 +27,7 @@ async function seedAdminUser() {
     update: {
       password: hashedPassword,
       phone,
-      role: UserRole.SUPER_ADMIN,
+      role: UserRole.ADMIN,
       status: UserStatus.ACTIVE,
       emailVerified: true,
       phoneVerified: true,
@@ -38,7 +39,7 @@ async function seedAdminUser() {
       email,
       phone,
       password: hashedPassword,
-      role: UserRole.SUPER_ADMIN,
+      role: UserRole.ADMIN,
       status: UserStatus.ACTIVE,
       emailVerified: true,
       phoneVerified: true,
@@ -67,13 +68,18 @@ async function main() {
     await seedCategories();
     console.log('');
 
-    // 3. الشركات التجريبية
-    console.log('🏢 Step 3: Seeding demo businesses...');
+    // 3. الباقات
+    console.log('📦 Step 3: Seeding packages...');
+    await seedPackages(prisma);
+    console.log('');
+
+    // 4. الشركات التجريبية
+    console.log('🏢 Step 4: Seeding demo businesses...');
     await seedBusinesses();
     console.log('');
 
-    // 4. المستخدم الإداري (بعد المحافظات)
-    console.log('👤 Step 4: Seeding admin user...');
+    // 5. المستخدم الإداري (بعد المحافظات)
+    console.log('👤 Step 5: Seeding admin user...');
     await seedAdminUser();
     console.log('');
 

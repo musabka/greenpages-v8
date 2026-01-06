@@ -25,6 +25,7 @@ export class BusinessesController {
   @ApiQuery({ name: 'cityId', required: false, type: String })
   @ApiQuery({ name: 'districtId', required: false, type: String })
   @ApiQuery({ name: 'status', required: false, enum: BusinessStatus })
+  @ApiQuery({ name: 'ownerStatus', required: false, enum: ['unclaimed', 'claimed', 'verified'] })
   @ApiQuery({ name: 'featured', required: false, type: Boolean })
   @ApiQuery({ name: 'verified', required: false, type: Boolean })
   async findAll(
@@ -36,6 +37,7 @@ export class BusinessesController {
     @Query('cityId') cityId?: string,
     @Query('districtId') districtId?: string,
     @Query('status') status?: BusinessStatus,
+    @Query('ownerStatus') ownerStatus?: 'unclaimed' | 'claimed' | 'verified',
     @Query('featured') featured?: boolean,
     @Query('verified') verified?: boolean,
   ) {
@@ -49,6 +51,7 @@ export class BusinessesController {
       cityId,
       districtId,
       status,
+      ownerStatus,
       featured,
       verified,
     });
@@ -64,7 +67,7 @@ export class BusinessesController {
 
   @Get('stats')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إحصائيات الأنشطة التجارية' })
   async getStats() {
@@ -128,7 +131,7 @@ export class BusinessesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR, UserRole.AGENT)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR, UserRole.AGENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إضافة نشاط تجاري' })
   async create(@Body() createBusinessDto: CreateBusinessDto, @Request() req: any) {
@@ -142,7 +145,7 @@ export class BusinessesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR, UserRole.AGENT)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR, UserRole.AGENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث نشاط تجاري' })
   async update(@Param('id') id: string, @Body() updateBusinessDto: UpdateBusinessDto) {
@@ -151,7 +154,7 @@ export class BusinessesController {
 
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تغيير حالة نشاط تجاري' })
   async updateStatus(@Param('id') id: string, @Body('status') status: BusinessStatus) {
@@ -160,11 +163,69 @@ export class BusinessesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'حذف نشاط تجاري' })
   async remove(@Param('id') id: string) {
     await this.businessesService.delete(id);
     return { message: 'تم حذف النشاط التجاري بنجاح' };
+  }
+
+  @Post(':id/owner')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR, UserRole.GOVERNORATE_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'ربط نشاط بمالك' })
+  async linkOwner(
+    @Param('id') businessId: string,
+    @Body('userId') userId: string,
+    @Request() req: any,
+  ) {
+    return this.businessesService.linkOwner(businessId, userId, req.user.id);
+  }
+
+  @Delete(':id/owner')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR, UserRole.GOVERNORATE_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'فصل نشاط عن مالكه' })
+  async unlinkOwner(
+    @Param('id') businessId: string,
+    @Request() req: any,
+  ) {
+    return this.businessesService.unlinkOwner(businessId, req.user.id);
+  }
+
+  @Get(':id/ownership-audit')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'سجل تغييرات ملكية النشاط' })
+  async getOwnershipAudit(@Param('id') businessId: string) {
+    return this.businessesService.getOwnershipAudit(businessId);
+  }
+
+  @Post('bulk/link-owner')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR, UserRole.GOVERNORATE_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'ربط مجموعة أنشطة بمالك واحد' })
+  async bulkLinkOwner(
+    @Body('businessIds') businessIds: string[],
+    @Body('userId') userId: string,
+    @Request() req: any,
+  ) {
+    return this.businessesService.bulkLinkOwner(businessIds, userId, req.user.id);
+  }
+
+  @Post('bulk/unlink-owner')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR, UserRole.GOVERNORATE_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'فصل مجموعة أنشطة عن مالكيها' })
+  async bulkUnlinkOwner(
+    @Body('businessIds') businessIds: string[],
+    @Request() req: any,
+  ) {
+    return this.businessesService.bulkUnlinkOwner(businessIds, req.user.id);
   }
 }

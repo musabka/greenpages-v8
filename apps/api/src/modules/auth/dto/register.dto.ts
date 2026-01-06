@@ -30,6 +30,12 @@ export class RegisterDto {
   @MaxLength(50)
   lastName: string;
 
+  @ApiPropertyOptional({ example: 'طبيب', description: 'المهنة' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100, { message: 'المهنة طويلة جداً' })
+  profession?: string;
+
   @ApiPropertyOptional({ description: 'معرف المحافظة' })
   @IsOptional()
   @IsUUID('4', { message: 'معرف المحافظة غير صحيح' })

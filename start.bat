@@ -20,6 +20,16 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3002 ^| findstr LISTENING') 
     taskkill /PID %%a /F 2>nul
 )
 
+REM Find and kill process on port 3003 (Manager)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3003 ^| findstr LISTENING') do (
+    taskkill /PID %%a /F 2>nul
+)
+
+REM Find and kill process on port 3004 (Agent)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3004 ^| findstr LISTENING') do (
+    taskkill /PID %%a /F 2>nul
+)
+
 REM Wait for processes to fully stop
 timeout /t 2 /nobreak >nul
 echo.
@@ -45,16 +55,30 @@ REM Start Web App
 start "GreenPages Web" cmd /k "cd /d %~dp0apps\web && pnpm dev"
 echo Web App starting on port 3002...
 
+REM Wait before starting next app
+timeout /t 2 /nobreak >nul
+
+REM Start Manager Dashboard
+start "GreenPages Manager" cmd /k "cd /d %~dp0apps\manager && pnpm dev"
+echo Manager Dashboard starting on port 3003...
+
+REM Wait before starting next app
+timeout /t 2 /nobreak >nul
+
+REM Start Agent Dashboard
+start "GreenPages Agent" cmd /k "cd /d %~dp0apps\agent && pnpm dev"
+echo Agent Dashboard starting on port 3004...
+
 REM Wait for apps to initialize
 echo.
 echo Waiting for applications to initialize...
-timeout /t 8 /nobreak >nul
+timeout /t 10 /nobreak >nul
 
 REM Open browsers
 echo.
 echo Opening browsers...
 
-REM Open Web App
+REM Open Web App (main public site)
 start http://localhost:3002
 
 REM Wait 1 second
@@ -66,6 +90,18 @@ start http://localhost:3001
 REM Wait 1 second
 timeout /t 1 /nobreak >nul
 
+REM Open Manager Dashboard
+start http://localhost:3003
+
+REM Wait 1 second
+timeout /t 1 /nobreak >nul
+
+REM Open Agent Dashboard
+start http://localhost:3004
+
+REM Wait 1 second
+timeout /t 1 /nobreak >nul
+
 REM Open MinIO Console
 start http://localhost:9003
 
@@ -73,7 +109,18 @@ REM MinIO S3 API endpoint (optional)
 REM http://localhost:9002
 
 echo.
-echo All apps started and opened in browser!
+echo ========================================
+echo All applications started successfully!
+echo ========================================
+echo.
+echo   API:              http://localhost:3000
+echo   Admin Dashboard:  http://localhost:3001
+echo   Web App:          http://localhost:3002
+echo   Manager Portal:   http://localhost:3003
+echo   Agent Portal:     http://localhost:3004
+echo   MinIO Console:    http://localhost:9003
+echo.
+echo ========================================
 echo.
 echo Press any key to stop all applications...
 pause >nul
@@ -88,6 +135,12 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3001 ^| findstr LISTENING') 
     taskkill /PID %%a /F 2>nul
 )
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3002 ^| findstr LISTENING') do (
+    taskkill /PID %%a /F 2>nul
+)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3003 ^| findstr LISTENING') do (
+    taskkill /PID %%a /F 2>nul
+)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3004 ^| findstr LISTENING') do (
     taskkill /PID %%a /F 2>nul
 )
 echo Applications stopped.

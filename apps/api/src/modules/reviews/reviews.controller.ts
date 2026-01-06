@@ -15,7 +15,7 @@ export class ReviewsController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'قائمة المراجعات (للإدارة)' })
   @ApiQuery({ name: 'status', required: false, enum: ReviewStatus })
@@ -74,7 +74,7 @@ export class ReviewsController {
 
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تغيير حالة المراجعة' })
   async updateStatus(@Param('id') id: string, @Body('status') status: ReviewStatus) {
@@ -94,7 +94,7 @@ export class ReviewsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'حذف مراجعة' })
   async remove(@Param('id') id: string, @Request() req: any) {
-    const isAdmin = [UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(req.user.role);
+    const isAdmin = [UserRole.ADMIN].includes(req.user.role);
     await this.reviewsService.delete(id, req.user.id, isAdmin);
     return { message: 'تم حذف المراجعة بنجاح' };
   }

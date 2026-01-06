@@ -48,7 +48,7 @@ async function main() {
       email: 'admin@greenpages.sy',
       phone: '+963999999999',
       password: hashedPassword,
-      role: UserRole.SUPER_ADMIN,
+      role: UserRole.ADMIN,
       status: UserStatus.ACTIVE,
       firstName: 'مدير',
       lastName: 'النظام',

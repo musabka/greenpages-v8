@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Menu, X, Search, ChevronDown, User, LogIn, LogOut } from 'lucide-react';
+import { Menu, X, Search, ChevronDown, User, LogIn, LogOut, LayoutDashboard, Building2, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useSettings } from '@/components/settings-context';
 
@@ -165,44 +165,99 @@ export function Header() {
               <div className="relative">
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  style={{ 
+                    backgroundColor: userMenuOpen ? 'var(--color-primary, #16a34a)' : 'transparent',
+                    color: userMenuOpen ? 'white' : 'inherit'
+                  }}
                 >
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                    <User className="w-4 h-4 text-gray-600" />
+                  <div 
+                    className="w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ 
+                      backgroundColor: userMenuOpen ? 'rgba(255,255,255,0.2)' : '#e5e7eb'
+                    }}
+                  >
+                    <User className={`w-4 h-4 ${userMenuOpen ? 'text-white' : 'text-gray-600'}`} />
                   </div>
-                  <span className="hidden md:inline text-sm">{user.firstName}</span>
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                  <span className="hidden md:inline text-sm font-medium">
+                    {user.firstName} {user.lastName}
+                  </span>
+                  <ChevronDown 
+                    className={`w-4 h-4 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}
+                    style={{ color: userMenuOpen ? 'white' : '#9ca3af' }}
+                  />
                 </button>
 
                 {userMenuOpen && (
-                  <div className="absolute left-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
-                    <Link
-                      href="/profile"
-                      className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                  <>
+                    {/* Overlay */}
+                    <div 
+                      className="fixed inset-0 z-40"
                       onClick={() => setUserMenuOpen(false)}
-                    >
-                      <User className="w-4 h-4" />
-                      الملف الشخصي
-                    </Link>
-                    <Link
-                      href="/my-reviews"
-                      className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      تقييماتي
-                    </Link>
-                    <hr className="my-1" />
-                    <button
-                      onClick={() => {
-                        logout();
-                        setUserMenuOpen(false);
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 w-full text-right"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      تسجيل الخروج
-                    </button>
-                  </div>
+                    />
+                    
+                    {/* Menu */}
+                    <div className="absolute left-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50 overflow-hidden">
+                      {/* User Info */}
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <p className="font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
+                        <p className="text-sm text-gray-500">{user.email}</p>
+                      </div>
+
+                      {/* Navigation Links */}
+                      <div className="py-1">
+                        <Link
+                          href="/dashboard"
+                          className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <LayoutDashboard className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm">لوحة التحكم</span>
+                        </Link>
+                        
+                        <Link
+                          href="/dashboard/my-businesses"
+                          className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <Building2 className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm">أنشطتي التجارية</span>
+                        </Link>
+
+                        <Link
+                          href="/profile"
+                          className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <User className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm">الملف الشخصي</span>
+                        </Link>
+
+                        <Link
+                          href="/my-reviews"
+                          className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <MessageSquare className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm">مراجعاتي</span>
+                        </Link>
+                      </div>
+
+                      {/* Logout */}
+                      <div className="border-t border-gray-100 mt-1 pt-1">
+                        <button
+                          onClick={() => {
+                            logout();
+                            setUserMenuOpen(false);
+                          }}
+                          className="flex items-center gap-3 px-4 py-2.5 text-red-600 hover:bg-red-50 w-full text-right transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span className="text-sm font-medium">تسجيل الخروج</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             ) : (

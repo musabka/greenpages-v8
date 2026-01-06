@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PackagesService } from './packages.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,6 +22,41 @@ export class PackagesController {
     return this.packagesService.findAllPackages();
   }
 
+  @Get('expiring')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'قائمة الباقات التي شارفت على الانتهاء' })
+  async getExpiring(@Query('days') days?: number) {
+    return this.packagesService.getExpiringPackages(days ? Number(days) : 30);
+  }
+
+  @Get('subscriptions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'جميع الاشتراكات مع فلاتر' })
+  async getAllSubscriptions(
+    @Query('search') search?: string,
+    @Query('status') status?: 'active' | 'expired' | 'expiring',
+    @Query('packageId') packageId?: string,
+    @Query('daysThreshold') daysThreshold?: number,
+  ) {
+    return this.packagesService.getAllSubscriptions({
+      search,
+      status,
+      packageId,
+      daysThreshold: daysThreshold ? Number(daysThreshold) : 30,
+    });
+  }
+
+  @Get('business/:businessId')
+  @Public()
+  @ApiOperation({ summary: 'الحصول على الباقة الحالية لنشاط تجاري' })
+  async getBusinessPackage(@Param('businessId') businessId: string) {
+    return this.packagesService.getBusinessPackage(businessId);
+  }
+
   @Get(':id')
   @Public()
   @ApiOperation({ summary: 'عرض تفاصيل باقة معينة' })
@@ -31,7 +66,7 @@ export class PackagesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إنشاء باقة جديدة (مدير النظام فقط)' })
   async create(@Body() createPackageDto: CreatePackageDto) {
@@ -40,7 +75,7 @@ export class PackagesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث بيانات باقة (مدير النظام فقط)' })
   async update(@Param('id') id: string, @Body() updatePackageDto: UpdatePackageDto) {
@@ -49,7 +84,7 @@ export class PackagesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'حذف باقة (مدير النظام فقط)' })
   async remove(@Param('id') id: string) {
@@ -59,18 +94,11 @@ export class PackagesController {
 
   @Post('assign')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR, UserRole.GOVERNORATE_MANAGER, UserRole.AGENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'تعيين باقة لنشاط تجاري (إداري فقط)' })
-  async assign(@Body() assignPackageDto: AssignPackageDto) {
-    return this.packagesService.assignPackage(assignPackageDto);
-  }
-
-  @Get('business/:businessId')
-  @Public()
-  @ApiOperation({ summary: 'الحصول على الباقة الحالية لنشاط تجاري' })
-  async getBusinessPackage(@Param('businessId') businessId: string) {
-    return this.packagesService.getBusinessPackage(businessId);
+  @ApiOperation({ summary: 'تعيين باقة لنشاط تجاري (إداري/موظف/مدير محافظة/مندوب)' })
+  async assign(@Request() req, @Body() assignPackageDto: AssignPackageDto) {
+    return this.packagesService.assignPackage(assignPackageDto, req.user.id, req.user.role);
   }
 
   @Get('check-feature/:businessId')

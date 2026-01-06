@@ -1,0 +1,551 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Plus, Edit, Trash2, Save, X, Search, Filter, Eye, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+
+interface NotificationTemplate {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  type: string;
+  priority: string;
+  titleAr: string;
+  titleEn?: string;
+  messageAr: string;
+  messageEn?: string;
+  channels: string[];
+  emailSubjectAr?: string;
+  emailSubjectEn?: string;
+  emailBodyAr?: string;
+  emailBodyEn?: string;
+  smsTemplateAr?: string;
+  smsTemplateEn?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+const NOTIFICATION_TYPES = [
+  { value: 'SYSTEM', label: 'نظام' },
+  { value: 'SUBSCRIPTION_EXPIRING', label: 'اشتراك ينتهي قريباً' },
+  { value: 'SUBSCRIPTION_EXPIRED', label: 'اشتراك منتهي' },
+  { value: 'BUSINESS_PENDING', label: 'نشاط قيد المراجعة' },
+  { value: 'BUSINESS_APPROVED', label: 'نشاط موافق عليه' },
+  { value: 'BUSINESS_REJECTED', label: 'نشاط مرفوض' },
+  { value: 'BUSINESS_UPDATE_REMINDER', label: 'تذكير تحديث النشاط' },
+  { value: 'REVIEW_NEW', label: 'تقييم جديد' },
+  { value: 'AGENT_REMINDER', label: 'تذكير للمندوب' },
+  { value: 'RENEWAL_REMINDER', label: 'تذكير بالتجديد' },
+  { value: 'PROMOTIONAL', label: 'ترويجي' },
+  { value: 'TARGETED', label: 'مستهدف' },
+];
+
+const PRIORITIES = [
+  { value: 'LOW', label: 'منخفضة' },
+  { value: 'MEDIUM', label: 'متوسطة' },
+  { value: 'HIGH', label: 'عالية' },
+  { value: 'URGENT', label: 'عاجلة' },
+];
+
+const CHANNELS = [
+  { value: 'IN_APP', label: 'داخل التطبيق' },
+  { value: 'PUSH', label: 'Push Notification' },
+  { value: 'EMAIL', label: 'بريد إلكتروني' },
+  { value: 'SMS', label: 'رسالة نصية' },
+];
+
+export default function NotificationTemplatesPage() {
+  const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
+  const [filteredTemplates, setFilteredTemplates] = useState<NotificationTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showVariablesGuide, setShowVariablesGuide] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<NotificationTemplate | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<NotificationTemplate | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<string>('');
+  const [filterChannel, setFilterChannel] = useState<string>('');
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [formData, setFormData] = useState<Partial<NotificationTemplate>>({
+    channels: ['IN_APP'],
+    priority: 'MEDIUM',
+    isActive: true,
+  });
+
+  useEffect(() => {
+    loadTemplates();
+  }, []);
+
+  useEffect(() => {
+    filterTemplates();
+  }, [templates, searchQuery, filterType, filterChannel]);
+
+  const filterTemplates = () => {
+    let filtered = [...templates];
+
+    if (searchQuery) {
+      filtered = filtered.filter(t =>
+        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    if (filterType) {
+      filtered = filtered.filter(t => t.type === filterType);
+    }
+
+    if (filterChannel) {
+      filtered = filtered.filter(t => t.channels.includes(filterChannel));
+    }
+
+    setFilteredTemplates(filtered);
+  };
+
+  const loadTemplates = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/v1/notifications/templates', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const templatesData = data.templates || data.data || data;
+        setTemplates(Array.isArray(templatesData) ? templatesData : []);
+      } else {
+        setTemplates([]);
+      }
+    } catch (error) {
+      console.error('Error loading templates:', error);
+      setTemplates([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const url = editingTemplate
+        ? `http://localhost:3000/api/v1/notifications/templates/${editingTemplate.id}`
+        : 'http://localhost:3000/api/v1/notifications/templates';
+      
+      const method = editingTemplate ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        await loadTemplates();
+        setShowModal(false);
+        setEditingTemplate(null);
+        setFormData({ channels: ['IN_APP'], priority: 'MEDIUM', isActive: true });
+      }
+    } catch (error) {
+      console.error('Error saving template:', error);
+    }
+  };
+
+  const handleEdit = (template: NotificationTemplate) => {
+    setEditingTemplate(template);
+    setFormData(template);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذا القالب؟')) return;
+
+    try {
+      const response = await fetch(`http://localhost:3000/api/v1/notifications/templates/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (response.ok) {
+        await loadTemplates();
+      }
+    } catch (error) {
+      console.error('Error deleting template:', error);
+    }
+  };
+
+  const openCreateModal = () => {
+    setEditingTemplate(null);
+    setFormData({ channels: ['IN_APP'], priority: 'MEDIUM', isActive: true });
+    setShowModal(true);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">قوالب الإشعارات</h1>
+          <p className="text-gray-600 mt-1">إدارة قوالب الإشعارات المخصصة</p>
+        </div>
+        <button onClick={openCreateModal} className="btn-primary flex items-center gap-2">
+          <Plus className="w-4 h-4" />
+          قالب جديد
+        </button>
+      </div>
+
+      {/* Templates Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {templates.map((template) => (
+          <div key={template.id} className="card hover:shadow-lg transition-shadow">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <h3 className="font-semibold text-gray-900">{template.name}</h3>
+                <p className="text-xs text-gray-500 mt-1">{template.code}</p>
+              </div>
+              <span className={`px-2 py-1 text-xs rounded-full ${
+                template.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {template.isActive ? 'نشط' : 'غير نشط'}
+              </span>
+            </div>
+
+            {template.description && (
+              <p className="text-sm text-gray-600 mb-3">{template.description}</p>
+            )}
+
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">النوع:</span>
+                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                  {NOTIFICATION_TYPES.find(t => t.value === template.type)?.label || template.type}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">الأولوية:</span>
+                <span className={`text-xs px-2 py-0.5 rounded ${
+                  template.priority === 'URGENT' ? 'bg-red-100 text-red-800' :
+                  template.priority === 'HIGH' ? 'bg-orange-100 text-orange-800' :
+                  template.priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {PRIORITIES.find(p => p.value === template.priority)?.label}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {template.channels.map((channel) => (
+                  <span key={channel} className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                    {CHANNELS.find(c => c.value === channel)?.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-2 rounded text-xs mb-3">
+              <p className="font-semibold mb-1">{template.titleAr}</p>
+              <p className="text-gray-600">{template.messageAr}</p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleEdit(template)}
+                className="flex-1 btn-secondary text-sm py-2"
+              >
+                <Edit className="w-3 h-3 inline mr-1" />
+                تعديل
+              </button>
+              <button
+                onClick={() => handleDelete(template.id)}
+                className="btn-danger text-sm py-2 px-3"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b sticky top-0 bg-white">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">
+                  {editingTemplate ? 'تعديل القالب' : 'قالب جديد'}
+                </h2>
+                <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="label">كود القالب *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.code || ''}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    className="input"
+                    placeholder="SUBSCRIPTION_EXPIRING_30"
+                  />
+                </div>
+                <div>
+                  <label className="label">اسم القالب *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name || ''}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="input"
+                    placeholder="تذكير انتهاء الاشتراك"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="label">الوصف</label>
+                <input
+                  type="text"
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="input"
+                  placeholder="وصف القالب"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="label">نوع الإشعار *</label>
+                  <select
+                    required
+                    value={formData.type || ''}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">اختر النوع</option>
+                    {NOTIFICATION_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>{type.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">الأولوية *</label>
+                  <select
+                    required
+                    value={formData.priority || 'MEDIUM'}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                    className="input"
+                  >
+                    {PRIORITIES.map((priority) => (
+                      <option key={priority.value} value={priority.value}>{priority.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">الحالة</label>
+                  <select
+                    value={formData.isActive ? 'true' : 'false'}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'true' })}
+                    className="input"
+                  >
+                    <option value="true">نشط</option>
+                    <option value="false">غير نشط</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="label">قنوات الإرسال *</label>
+                <div className="flex flex-wrap gap-3">
+                  {CHANNELS.map((channel) => (
+                    <label key={channel.value} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.channels?.includes(channel.value)}
+                        onChange={(e) => {
+                          const channels = formData.channels || [];
+                          if (e.target.checked) {
+                            setFormData({ ...formData, channels: [...channels, channel.value] });
+                          } else {
+                            setFormData({ ...formData, channels: channels.filter(c => c !== channel.value) });
+                          }
+                        }}
+                        className="checkbox"
+                      />
+                      <span className="text-sm">{channel.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="font-semibold mb-3">محتوى الإشعار داخل التطبيق</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">العنوان (عربي) *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.titleAr || ''}
+                      onChange={(e) => setFormData({ ...formData, titleAr: e.target.value })}
+                      className="input"
+                      placeholder="اشتراكك ينتهي قريباً"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">العنوان (إنجليزي)</label>
+                    <input
+                      type="text"
+                      value={formData.titleEn || ''}
+                      onChange={(e) => setFormData({ ...formData, titleEn: e.target.value })}
+                      className="input"
+                      placeholder="Your subscription is expiring soon"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="label">الرسالة (عربي) *</label>
+                    <textarea
+                      required
+                      value={formData.messageAr || ''}
+                      onChange={(e) => setFormData({ ...formData, messageAr: e.target.value })}
+                      className="input"
+                      rows={3}
+                      placeholder="يمكنك استخدام {{variableName}} للمتغيرات"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">الرسالة (إنجليزي)</label>
+                    <textarea
+                      value={formData.messageEn || ''}
+                      onChange={(e) => setFormData({ ...formData, messageEn: e.target.value })}
+                      className="input"
+                      rows={3}
+                      placeholder="You can use {{variableName}} for variables"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {formData.channels?.includes('EMAIL') && (
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3">محتوى البريد الإلكتروني</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">موضوع البريد (عربي)</label>
+                      <input
+                        type="text"
+                        value={formData.emailSubjectAr || ''}
+                        onChange={(e) => setFormData({ ...formData, emailSubjectAr: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">موضوع البريد (إنجليزي)</label>
+                      <input
+                        type="text"
+                        value={formData.emailSubjectEn || ''}
+                        onChange={(e) => setFormData({ ...formData, emailSubjectEn: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="label">نص البريد (عربي)</label>
+                      <textarea
+                        value={formData.emailBodyAr || ''}
+                        onChange={(e) => setFormData({ ...formData, emailBodyAr: e.target.value })}
+                        className="input"
+                        rows={4}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">نص البريد (إنجليزي)</label>
+                      <textarea
+                        value={formData.emailBodyEn || ''}
+                        onChange={(e) => setFormData({ ...formData, emailBodyEn: e.target.value })}
+                        className="input"
+                        rows={4}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {formData.channels?.includes('SMS') && (
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3">محتوى الرسالة النصية</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">نص الرسالة (عربي)</label>
+                      <textarea
+                        value={formData.smsTemplateAr || ''}
+                        onChange={(e) => setFormData({ ...formData, smsTemplateAr: e.target.value })}
+                        className="input"
+                        rows={2}
+                        maxLength={160}
+                        placeholder="حد أقصى 160 حرف"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {(formData.smsTemplateAr || '').length}/160 حرف
+                      </p>
+                    </div>
+                    <div>
+                      <label className="label">نص الرسالة (إنجليزي)</label>
+                      <textarea
+                        value={formData.smsTemplateEn || ''}
+                        onChange={(e) => setFormData({ ...formData, smsTemplateEn: e.target.value })}
+                        className="input"
+                        rows={2}
+                        maxLength={160}
+                        placeholder="Max 160 characters"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {(formData.smsTemplateEn || '').length}/160 characters
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4 border-t">
+                <button type="submit" className="btn-primary flex-1">
+                  <Save className="w-4 h-4 inline ml-2" />
+                  حفظ القالب
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="btn-secondary"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

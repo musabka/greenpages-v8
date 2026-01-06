@@ -1,15 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowRight, Loader2, Save } from 'lucide-react';
 import { useGovernorate, useUpdateGovernorate } from '@/lib/hooks';
 
-export default function EditGovernoratePage() {
+export default function EditGovernoratePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const id = typeof params?.id === 'string' ? params.id : '';
 
   const { data: governorate, isLoading, isError } = useGovernorate(id);
   const updateGovernorate = useUpdateGovernorate();

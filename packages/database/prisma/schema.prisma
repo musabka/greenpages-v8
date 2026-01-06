@@ -1,8 +1,3 @@
-// ===========================================
-// النواة الخضراء - الصفحات الخضراء
-// Prisma Schema - Green Pages
-// ===========================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,17 +7,1307 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===========================================
-// ENUMS
-// ===========================================
+model User {
+  id                         String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email                      String                        @unique
+  phone                      String                        @unique
+  password                   String
+  role                       UserRole                      @default(USER)
+  status                     UserStatus                    @default(ACTIVE)
+  firstName                  String                        @map("first_name")
+  lastName                   String                        @map("last_name")
+  displayName                String?                       @map("display_name")
+  avatar                     String?
+  bio                        String?
+  governorateId              String?                       @map("governorate_id") @db.Uuid
+  cityId                     String?                       @map("city_id") @db.Uuid
+  districtId                 String?                       @map("district_id") @db.Uuid
+  addressLine                String?                       @map("address_line")
+  emailVerified              Boolean                       @default(false) @map("email_verified")
+  phoneVerified              Boolean                       @default(false) @map("phone_verified")
+  verifiedAt                 DateTime?                     @map("verified_at")
+  lastLoginAt                DateTime?                     @map("last_login_at")
+  lastLoginIp                String?                       @map("last_login_ip")
+  createdAt                  DateTime                      @default(now()) @map("created_at")
+  updatedAt                  DateTime                      @updatedAt @map("updated_at")
+  deletedAt                  DateTime?                     @map("deleted_at")
+  profession                 String?                       @map("profession")
+  tokenVersion               Int                           @default(0) @map("token_version")
+  activityLogs               ActivityLog[]
+  managedAgents              AgentProfile[]                @relation("AgentManager")
+  agentProfile               AgentProfile?
+  receivedAgentSettlements   AgentSettlement[]             @relation("SettlementReceiver")
+  createdBulkNotifications   BulkNotification[]            @relation("CreatedBulkNotifications")
+  ownershipAudits            BusinessOwnershipAudit[]      @relation("OwnershipAuditPerformed")
+  claimedInvitations         BusinessOwnershipInvitation[] @relation("ClaimedInvitations")
+  createdInvitations         BusinessOwnershipInvitation[] @relation("CreatedInvitations")
+  businessPersons            BusinessPerson[]
+  agentBusinesses            Business[]                    @relation("BusinessAgent")
+  createdBusinesses          Business[]                    @relation("BusinessCreator")
+  businesses                 Business[]                    @relation("BusinessOwner")
+  approvedPayments           CommissionPayment[]           @relation("PaymentApprover")
+  paidPayments               CommissionPayment[]           @relation("PaymentPayer")
+  governorateManagers        GovernorateManager[]
+  receivedManagerSettlements ManagerSettlement[]           @relation("ManagerSettlementReceiver")
+  notificationPreference     NotificationPreference?
+  sentNotifications          Notification[]                @relation("SentNotifications")
+  notifications              Notification[]
+  renewalContacts            RenewalContact[]              @relation("AgentContacts")
+  assignedRenewals           RenewalRecord[]               @relation("AgentRenewals")
+  reviews                    Review[]
+  sessions                   Session[]
+  createdCapabilities        UserBusinessCapability[]      @relation("CapabilityCreator")
+  businessCapabilities       UserBusinessCapability[]      @relation("UserCapabilities")
+  devices                    UserDevice[]
+  wallet                     Wallet?
+  processedTopUps            WalletTopUp[]                 @relation("TopUpProcessor")
+  processedWithdrawals       WalletWithdrawal[]            @relation("WithdrawalProcessor")
+  city                       City?                         @relation(fields: [cityId], references: [id])
+  district                   District?                     @relation(fields: [districtId], references: [id])
+  governorate                Governorate?                  @relation(fields: [governorateId], references: [id])
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@index([status])
+  @@index([governorateId])
+  @@index([cityId])
+  @@index([districtId])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  token        String   @unique
+  refreshToken String?  @unique @map("refresh_token")
+  userAgent    String?  @map("user_agent")
+  ipAddress    String?  @map("ip_address")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+model PasswordReset {
+  id        String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email     String
+  token     String    @unique
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([token])
+  @@map("password_resets")
+}
+
+model PhoneOtp {
+  id        String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  phone     String
+  code      String
+  purpose   OtpPurpose @default(VERIFY_PHONE)
+  attempts  Int        @default(0)
+  verified  Boolean    @default(false)
+  expiresAt DateTime   @map("expires_at")
+  usedAt    DateTime?  @map("used_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@index([phone])
+  @@index([phone, code])
+  @@map("phone_otps")
+}
+
+model Governorate {
+  id                  String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  slug                String               @unique
+  nameAr              String               @map("name_ar")
+  nameEn              String?              @map("name_en")
+  description         String?
+  latitude            Decimal?             @db.Decimal(10, 8)
+  longitude           Decimal?             @db.Decimal(11, 8)
+  sortOrder           Int                  @default(0) @map("sort_order")
+  isActive            Boolean              @default(true) @map("is_active")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  adTargets           AdGovernorate[]
+  agentGovernorates   AgentGovernorate[]
+  agentVisits         AgentVisit[]
+  businesses          Business[]
+  cities              City[]
+  governorateManagers GovernorateManager[]
+  users               User[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("governorates")
+}
+
+model City {
+  id            String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  governorateId String           @map("governorate_id") @db.Uuid
+  slug          String           @unique
+  nameAr        String           @map("name_ar")
+  nameEn        String?          @map("name_en")
+  description   String?
+  latitude      Decimal?         @db.Decimal(10, 8)
+  longitude     Decimal?         @db.Decimal(11, 8)
+  sortOrder     Int              @default(0) @map("sort_order")
+  isActive      Boolean          @default(true) @map("is_active")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  adTargets     AdCity[]
+  agentVisits   AgentVisit[]
+  branches      BusinessBranch[]
+  businesses    Business[]
+  governorate   Governorate      @relation(fields: [governorateId], references: [id], onDelete: Cascade)
+  districts     District[]
+  users         User[]
+
+  @@index([governorateId])
+  @@index([slug])
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("cities")
+}
+
+model District {
+  id          String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cityId      String           @map("city_id") @db.Uuid
+  slug        String           @unique
+  nameAr      String           @map("name_ar")
+  nameEn      String?          @map("name_en")
+  description String?
+  latitude    Decimal?         @db.Decimal(10, 8)
+  longitude   Decimal?         @db.Decimal(11, 8)
+  sortOrder   Int              @default(0) @map("sort_order")
+  isActive    Boolean          @default(true) @map("is_active")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  branches    BusinessBranch[]
+  businesses  Business[]
+  city        City             @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  users       User[]
+
+  @@index([cityId])
+  @@index([slug])
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("districts")
+}
+
+model Category {
+  id            String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  parentId      String?            @map("parent_id") @db.Uuid
+  slug          String             @unique
+  nameAr        String             @map("name_ar")
+  nameEn        String?            @map("name_en")
+  descriptionAr String?            @map("description_ar")
+  descriptionEn String?            @map("description_en")
+  icon          String?
+  image         String?
+  color         String?
+  sortOrder     Int                @default(0) @map("sort_order")
+  isActive      Boolean            @default(true) @map("is_active")
+  isFeatured    Boolean            @default(false) @map("is_featured")
+  metaTitleAr   String?            @map("meta_title_ar")
+  metaTitleEn   String?            @map("meta_title_en")
+  metaDescAr    String?            @map("meta_desc_ar")
+  metaDescEn    String?            @map("meta_desc_en")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  businesses    BusinessCategory[]
+  parent        Category?          @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children      Category[]         @relation("CategoryHierarchy")
+
+  @@index([parentId])
+  @@index([slug])
+  @@index([isActive])
+  @@index([isFeatured])
+  @@index([sortOrder])
+  @@map("categories")
+}
+
+model Business {
+  id                 String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  slug               String                        @unique
+  nameAr             String                        @map("name_ar")
+  nameEn             String?                       @map("name_en")
+  descriptionAr      String?                       @map("description_ar")
+  descriptionEn      String?                       @map("description_en")
+  shortDescAr        String?                       @map("short_desc_ar")
+  shortDescEn        String?                       @map("short_desc_en")
+  logo               String?
+  cover              String?
+  governorateId      String                        @map("governorate_id") @db.Uuid
+  cityId             String                        @map("city_id") @db.Uuid
+  districtId         String?                       @map("district_id") @db.Uuid
+  addressAr          String?                       @map("address_ar")
+  addressEn          String?                       @map("address_en")
+  latitude           Decimal?                      @db.Decimal(10, 8)
+  longitude          Decimal?                      @db.Decimal(11, 8)
+  status             BusinessStatus                @default(DRAFT)
+  verificationStatus VerificationStatus            @default(UNVERIFIED) @map("verification_status")
+  verifiedAt         DateTime?                     @map("verified_at")
+  isFeatured         Boolean                       @default(false) @map("is_featured")
+  isVerified         Boolean                       @default(false) @map("is_verified")
+  isActive           Boolean                       @default(true) @map("is_active")
+  viewsCount         Int                           @default(0) @map("views_count")
+  reviewsCount       Int                           @default(0) @map("reviews_count")
+  averageRating      Decimal                       @default(0) @map("average_rating") @db.Decimal(2, 1)
+  metaTitleAr        String?                       @map("meta_title_ar")
+  metaTitleEn        String?                       @map("meta_title_en")
+  metaDescAr         String?                       @map("meta_desc_ar")
+  metaDescEn         String?                       @map("meta_desc_en")
+  metaKeywordsAr     String?                       @map("meta_keywords_ar")
+  metaKeywordsEn     String?                       @map("meta_keywords_en")
+  ownerId            String?                       @map("owner_id") @db.Uuid
+  agentId            String?                       @map("agent_id") @db.Uuid
+  createdById        String?                       @map("created_by_id") @db.Uuid
+  publishedAt        DateTime?                     @map("published_at")
+  createdAt          DateTime                      @default(now()) @map("created_at")
+  updatedAt          DateTime                      @updatedAt @map("updated_at")
+  deletedAt          DateTime?                     @map("deleted_at")
+  ownerStatus        String                        @default("unclaimed") @map("owner_status")
+  ads                Ad[]
+  agentCollections   AgentCollection[]
+  agentCommissions   AgentCommission[]
+  agentVisits        AgentVisit[]
+  branches           BusinessBranch[]
+  categories         BusinessCategory[]
+  contacts           BusinessContact[]
+  media              BusinessMedia[]
+  ownerInvitations   BusinessOwnershipInvitation[] @relation("BusinessInvitations")
+  package            BusinessPackage?
+  persons            BusinessPerson[]
+  products           BusinessProduct[]
+  views              BusinessView[]
+  workingHours       BusinessWorkingHours[]
+  agent              User?                         @relation("BusinessAgent", fields: [agentId], references: [id])
+  city               City                          @relation(fields: [cityId], references: [id])
+  createdBy          User?                         @relation("BusinessCreator", fields: [createdById], references: [id])
+  district           District?                     @relation(fields: [districtId], references: [id])
+  governorate        Governorate                   @relation(fields: [governorateId], references: [id])
+  owner              User?                         @relation("BusinessOwner", fields: [ownerId], references: [id])
+  renewalRecords     RenewalRecord[]
+  reviews            Review[]
+  userCapabilities   UserBusinessCapability[]      @relation("BusinessCapabilities")
+
+  @@index([slug])
+  @@index([status])
+  @@index([verificationStatus])
+  @@index([governorateId])
+  @@index([cityId])
+  @@index([districtId])
+  @@index([ownerId])
+  @@index([ownerStatus])
+  @@index([agentId])
+  @@index([isFeatured])
+  @@index([isVerified])
+  @@index([isActive])
+  @@index([averageRating])
+  @@index([createdAt])
+  @@index([status, governorateId])
+  @@index([status, cityId])
+  @@index([status, isFeatured])
+  @@index([status, isVerified])
+  @@map("businesses")
+}
+
+model BusinessCategory {
+  businessId String   @map("business_id") @db.Uuid
+  categoryId String   @map("category_id") @db.Uuid
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  createdAt  DateTime @default(now()) @map("created_at")
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([businessId, categoryId])
+  @@index([businessId])
+  @@index([categoryId])
+  @@index([isPrimary])
+  @@index([createdAt])
+  @@map("business_categories")
+}
+
+model BusinessBranch {
+  id           String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId   String                 @map("business_id") @db.Uuid
+  nameAr       String                 @map("name_ar")
+  nameEn       String?                @map("name_en")
+  cityId       String                 @map("city_id") @db.Uuid
+  districtId   String?                @map("district_id") @db.Uuid
+  addressAr    String?                @map("address_ar")
+  addressEn    String?                @map("address_en")
+  latitude     Decimal?               @db.Decimal(10, 8)
+  longitude    Decimal?               @db.Decimal(11, 8)
+  phone        String?
+  isMain       Boolean                @default(false) @map("is_main")
+  isActive     Boolean                @default(true) @map("is_active")
+  sortOrder    Int                    @default(0) @map("sort_order")
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
+  business     Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  city         City                   @relation(fields: [cityId], references: [id])
+  district     District?              @relation(fields: [districtId], references: [id])
+  contacts     BusinessContact[]
+  workingHours BusinessWorkingHours[]
+
+  @@index([businessId])
+  @@index([cityId])
+  @@index([districtId])
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("business_branches")
+}
+
+model BusinessWorkingHours {
+  id         String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId String          @map("business_id") @db.Uuid
+  branchId   String?         @map("branch_id") @db.Uuid
+  dayOfWeek  DayOfWeek       @map("day_of_week")
+  openTime   String?         @map("open_time")
+  closeTime  String?         @map("close_time")
+  isClosed   Boolean         @default(false) @map("is_closed")
+  is24Hours  Boolean         @default(false) @map("is_24_hours")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+  branch     BusinessBranch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, branchId, dayOfWeek])
+  @@index([businessId])
+  @@index([branchId])
+  @@map("business_working_hours")
+}
+
+model BusinessContact {
+  id         String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId String          @map("business_id") @db.Uuid
+  branchId   String?         @map("branch_id") @db.Uuid
+  type       ContactType
+  value      String
+  label      String?
+  isPrimary  Boolean         @default(false) @map("is_primary")
+  isPublic   Boolean         @default(true) @map("is_public")
+  sortOrder  Int             @default(0) @map("sort_order")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+  branch     BusinessBranch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([branchId])
+  @@index([type])
+  @@map("business_contacts")
+}
+
+model BusinessMedia {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId   String    @map("business_id") @db.Uuid
+  type         MediaType
+  url          String
+  thumbnailUrl String?   @map("thumbnail_url")
+  titleAr      String?   @map("title_ar")
+  titleEn      String?   @map("title_en")
+  altAr        String?   @map("alt_ar")
+  altEn        String?   @map("alt_en")
+  sortOrder    Int       @default(0) @map("sort_order")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([type])
+  @@map("business_media")
+}
+
+model BusinessPerson {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  nameAr     String   @map("name_ar")
+  nameEn     String?  @map("name_en")
+  positionAr String?  @map("position_ar")
+  positionEn String?  @map("position_en")
+  bioAr      String?  @map("bio_ar")
+  bioEn      String?  @map("bio_en")
+  photo      String?
+  phone      String?
+  email      String?
+  isPublic   Boolean  @default(true) @map("is_public")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([sortOrder])
+  @@map("business_persons")
+}
+
+model BusinessProduct {
+  id            String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId    String      @map("business_id") @db.Uuid
+  type          ProductType @default(PRODUCT)
+  nameAr        String      @map("name_ar")
+  nameEn        String?     @map("name_en")
+  descriptionAr String?     @map("description_ar")
+  descriptionEn String?     @map("description_en")
+  image         String?
+  price         Decimal?    @db.Decimal(12, 2)
+  currency      String?     @default("SYP")
+  priceNote     String?     @map("price_note")
+  isAvailable   Boolean     @default(true) @map("is_available")
+  isFeatured    Boolean     @default(false) @map("is_featured")
+  sortOrder     Int         @default(0) @map("sort_order")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  business      Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([type])
+  @@index([isAvailable])
+  @@index([isFeatured])
+  @@map("business_products")
+}
+
+model BusinessView {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  date       DateTime @default(now()) @db.Date
+  count      Int      @default(1)
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, date])
+  @@index([date])
+  @@map("business_views")
+}
+
+model Review {
+  id           String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId   String       @map("business_id") @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  rating       Int
+  titleAr      String?      @map("title_ar")
+  titleEn      String?      @map("title_en")
+  contentAr    String?      @map("content_ar")
+  contentEn    String?      @map("content_en")
+  pros         String[]     @default([])
+  cons         String[]     @default([])
+  status       ReviewStatus @default(PENDING)
+  isVerified   Boolean      @default(false) @map("is_verified")
+  helpfulCount Int          @default(0) @map("helpful_count")
+  reportCount  Int          @default(0) @map("report_count")
+  ipAddress    String?      @map("ip_address")
+  userAgent    String?      @map("user_agent")
+  replyAr      String?      @map("reply_ar")
+  replyEn      String?      @map("reply_en")
+  repliedAt    DateTime?    @map("replied_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([status])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("reviews")
+}
+
+model Ad {
+  id                 String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId         String?         @map("business_id") @db.Uuid
+  type               AdType
+  position           AdPosition
+  titleAr            String          @map("title_ar")
+  titleEn            String?         @map("title_en")
+  descriptionAr      String?         @map("description_ar")
+  descriptionEn      String?         @map("description_en")
+  imageDesktop       String?         @map("image_desktop")
+  imageMobile        String?         @map("image_mobile")
+  linkUrl            String?         @map("link_url")
+  status             AdStatus        @default(DRAFT)
+  priority           Int             @default(0)
+  startDate          DateTime        @map("start_date")
+  endDate            DateTime        @map("end_date")
+  impressions        Int             @default(0)
+  clicks             Int             @default(0)
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+  targetAllLocations Boolean         @default(true) @map("target_all_locations")
+  targetCities       AdCity[]
+  targetGovernorates AdGovernorate[]
+  business           Business?       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([status])
+  @@index([type])
+  @@index([position])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([targetAllLocations])
+  @@map("ads")
+}
+
+model AdGovernorate {
+  id            String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  adId          String      @map("ad_id") @db.Uuid
+  governorateId String      @map("governorate_id") @db.Uuid
+  ad            Ad          @relation(fields: [adId], references: [id], onDelete: Cascade)
+  governorate   Governorate @relation(fields: [governorateId], references: [id], onDelete: Cascade)
+
+  @@unique([adId, governorateId])
+  @@index([adId])
+  @@index([governorateId])
+  @@map("ad_governorates")
+}
+
+model AdCity {
+  id     String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  adId   String @map("ad_id") @db.Uuid
+  cityId String @map("city_id") @db.Uuid
+  ad     Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([adId, cityId])
+  @@index([adId])
+  @@index([cityId])
+  @@map("ad_cities")
+}
+
+model Notification {
+  id                 String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId             String                @map("user_id") @db.Uuid
+  type               NotificationType
+  titleAr            String                @map("title_ar")
+  titleEn            String?               @map("title_en")
+  messageAr          String                @map("message_ar")
+  messageEn          String?               @map("message_en")
+  data               Json?
+  isRead             Boolean               @default(false) @map("is_read")
+  readAt             DateTime?             @map("read_at")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  actionUrl          String?               @map("action_url")
+  archivedAt         DateTime?             @map("archived_at")
+  bulkNotificationId String?               @map("bulk_notification_id") @db.Uuid
+  channels           NotificationChannel[] @default([IN_APP])
+  imageUrl           String?               @map("image_url")
+  isArchived         Boolean               @default(false) @map("is_archived")
+  priority           NotificationPriority  @default(MEDIUM)
+  referenceId        String?               @map("reference_id") @db.Uuid
+  referenceType      String?               @map("reference_type")
+  scheduledAt        DateTime?             @map("scheduled_at")
+  senderId           String?               @map("sender_id") @db.Uuid
+  sentAt             DateTime?             @map("sent_at")
+  sentViaEmail       Boolean               @default(false) @map("sent_via_email")
+  sentViaPush        Boolean               @default(false) @map("sent_via_push")
+  sentViaSms         Boolean               @default(false) @map("sent_via_sms")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+  bulkNotification   BulkNotification?     @relation(fields: [bulkNotificationId], references: [id])
+  sender             User?                 @relation("SentNotifications", fields: [senderId], references: [id])
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, type])
+  @@index([userId, createdAt])
+  @@index([scheduledAt])
+  @@index([referenceType, referenceId])
+  @@index([bulkNotificationId])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  emailEnabled      Boolean  @default(true) @map("email_enabled")
+  pushEnabled       Boolean  @default(true) @map("push_enabled")
+  smsEnabled        Boolean  @default(false) @map("sms_enabled")
+  typePreferences   Json?    @map("type_preferences")
+  quietHoursEnabled Boolean  @default(false) @map("quiet_hours_enabled")
+  quietHoursStart   String?  @map("quiet_hours_start")
+  quietHoursEnd     String?  @map("quiet_hours_end")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model NotificationTemplate {
+  id             String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code           String                @unique
+  name           String
+  description    String?
+  type           NotificationType
+  priority       NotificationPriority  @default(MEDIUM)
+  titleAr        String                @map("title_ar")
+  titleEn        String?               @map("title_en")
+  messageAr      String                @map("message_ar")
+  messageEn      String?               @map("message_en")
+  channels       NotificationChannel[] @default([IN_APP])
+  emailSubjectAr String?               @map("email_subject_ar")
+  emailSubjectEn String?               @map("email_subject_en")
+  emailBodyAr    String?               @map("email_body_ar")
+  emailBodyEn    String?               @map("email_body_en")
+  smsTemplateAr  String?               @map("sms_template_ar")
+  smsTemplateEn  String?               @map("sms_template_en")
+  pushTitleAr    String?               @map("push_title_ar")
+  pushTitleEn    String?               @map("push_title_en")
+  pushBodyAr     String?               @map("push_body_ar")
+  pushBodyEn     String?               @map("push_body_en")
+  isActive       Boolean               @default(true) @map("is_active")
+  isSystem       Boolean               @default(false) @map("is_system")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  @@index([code])
+  @@index([type])
+  @@index([isActive])
+  @@map("notification_templates")
+}
+
+model BulkNotification {
+  id              String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  titleAr         String                 @map("title_ar")
+  titleEn         String?                @map("title_en")
+  messageAr       String                 @map("message_ar")
+  messageEn       String?                @map("message_en")
+  actionUrl       String?                @map("action_url")
+  imageUrl        String?                @map("image_url")
+  priority        NotificationPriority   @default(MEDIUM)
+  channels        NotificationChannel[]  @default([IN_APP])
+  targetCriteria  Json                   @map("target_criteria")
+  totalRecipients Int                    @default(0) @map("total_recipients")
+  sentCount       Int                    @default(0) @map("sent_count")
+  readCount       Int                    @default(0) @map("read_count")
+  failedCount     Int                    @default(0) @map("failed_count")
+  status          BulkNotificationStatus @default(DRAFT)
+  scheduledAt     DateTime?              @map("scheduled_at")
+  startedAt       DateTime?              @map("started_at")
+  completedAt     DateTime?              @map("completed_at")
+  errorMessage    String?                @map("error_message")
+  createdById     String                 @map("created_by_id") @db.Uuid
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  createdBy       User                   @relation("CreatedBulkNotifications", fields: [createdById], references: [id])
+  notifications   Notification[]
+
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([createdById])
+  @@map("bulk_notifications")
+}
+
+model UserDevice {
+  id           String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId       String     @map("user_id") @db.Uuid
+  deviceType   DeviceType
+  deviceToken  String     @map("device_token")
+  deviceName   String?    @map("device_name")
+  deviceModel  String?    @map("device_model")
+  osVersion    String?    @map("os_version")
+  appVersion   String?    @map("app_version")
+  isActive     Boolean    @default(true) @map("is_active")
+  lastActiveAt DateTime?  @map("last_active_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceToken])
+  @@index([userId, isActive])
+  @@index([deviceToken])
+  @@map("user_devices")
+}
+
+model ScheduledNotification {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  jobType       String    @map("job_type")
+  jobData       Json      @map("job_data")
+  referenceType String?   @map("reference_type")
+  referenceId   String?   @map("reference_id") @db.Uuid
+  scheduledFor  DateTime  @map("scheduled_for")
+  executedAt    DateTime? @map("executed_at")
+  status        String    @default("pending")
+  errorMessage  String?   @map("error_message")
+  retryCount    Int       @default(0) @map("retry_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([scheduledFor, status])
+  @@index([jobType])
+  @@index([referenceType, referenceId])
+  @@map("scheduled_notifications")
+}
+
+model Setting {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  key         String   @unique
+  valueAr     String?  @map("value_ar")
+  valueEn     String?  @map("value_en")
+  type        String   @default("text")
+  group       String   @default("general")
+  description String?
+  isPublic    Boolean  @default(false) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([key])
+  @@index([group])
+  @@map("settings")
+}
+
+model Page {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  slug        String   @unique
+  titleAr     String   @map("title_ar")
+  titleEn     String?  @map("title_en")
+  contentAr   String   @map("content_ar")
+  contentEn   String?  @map("content_en")
+  metaTitleAr String?  @map("meta_title_ar")
+  metaTitleEn String?  @map("meta_title_en")
+  metaDescAr  String?  @map("meta_desc_ar")
+  metaDescEn  String?  @map("meta_desc_en")
+  isPublished Boolean  @default(false) @map("is_published")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([slug])
+  @@index([isPublished])
+  @@map("pages")
+}
+
+model Package {
+  id                     String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nameAr                 String            @map("name_ar")
+  nameEn                 String?           @map("name_en")
+  slug                   String            @unique
+  descriptionAr          String?           @map("description_ar")
+  descriptionEn          String?           @map("description_en")
+  price                  Decimal           @db.Decimal(12, 2)
+  durationDays           Int               @map("duration_days")
+  status                 PackageStatus     @default(ACTIVE)
+  isPublic               Boolean           @default(true) @map("is_public")
+  sortOrder              Int               @default(0) @map("sort_order")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+  isDefault              Boolean           @default(false) @map("is_default")
+  businessPackages       BusinessPackage[]
+  features               PackageFeature[]
+  limits                 PackageLimit[]
+  currentPackageRenewals RenewalRecord[]   @relation("CurrentPackageRenewals")
+  newPackageRenewals     RenewalRecord[]   @relation("NewPackageRenewals")
+
+  @@index([status])
+  @@index([isPublic])
+  @@index([isDefault])
+  @@index([sortOrder])
+  @@map("packages")
+}
+
+model PackageFeature {
+  id         String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  packageId  String     @map("package_id") @db.Uuid
+  featureKey FeatureKey @map("feature_key")
+  isEnabled  Boolean    @default(true) @map("is_enabled")
+  package    Package    @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, featureKey])
+  @@map("package_features")
+}
+
+model PackageLimit {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  packageId  String   @map("package_id") @db.Uuid
+  limitKey   LimitKey @map("limit_key")
+  limitValue Int      @map("limit_value")
+  package    Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, limitKey])
+  @@map("package_limits")
+}
+
+model BusinessPackage {
+  id                String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId        String           @unique @map("business_id") @db.Uuid
+  packageId         String           @map("package_id") @db.Uuid
+  startDate         DateTime         @default(now()) @map("start_date")
+  endDate           DateTime?        @map("end_date")
+  isActive          Boolean          @default(true) @map("is_active")
+  autoRenew         Boolean          @default(false) @map("auto_renew")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  overrideByUserId  String?          @map("override_by_user_id") @db.Uuid
+  overrideEnabled   Boolean          @default(false) @map("override_enabled")
+  overrideExpiresAt DateTime?        @map("override_expires_at")
+  overrideReason    String?          @map("override_reason")
+  business          Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  package           Package          @relation(fields: [packageId], references: [id])
+  history           PackageHistory[]
+
+  @@index([businessId])
+  @@index([packageId])
+  @@index([isActive])
+  @@index([overrideEnabled])
+  @@map("business_packages")
+}
+
+model PackageHistory {
+  id                String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessPackageId String          @map("business_package_id") @db.Uuid
+  packageId         String          @map("package_id") @db.Uuid
+  action            String
+  oldPackageId      String?         @map("old_package_id") @db.Uuid
+  price             Decimal         @db.Decimal(12, 2)
+  startDate         DateTime        @map("start_date")
+  endDate           DateTime        @map("end_date")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  businessPackage   BusinessPackage @relation(fields: [businessPackageId], references: [id], onDelete: Cascade)
+
+  @@map("package_history")
+}
+
+model RenewalRecord {
+  id                String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId        String           @map("business_id") @db.Uuid
+  businessPackageId String           @map("business_package_id") @db.Uuid
+  currentPackageId  String           @map("current_package_id") @db.Uuid
+  expiryDate        DateTime         @map("expiry_date")
+  status            RenewalStatus    @default(PENDING)
+  priority          Int              @default(0)
+  assignedAgentId   String?          @map("assigned_agent_id") @db.Uuid
+  assignedAt        DateTime?        @map("assigned_at")
+  finalDecision     RenewalDecision? @map("final_decision")
+  decisionDate      DateTime?        @map("decision_date")
+  decisionNotes     String?          @map("decision_notes")
+  newPackageId      String?          @map("new_package_id") @db.Uuid
+  nextFollowUpDate  DateTime?        @map("next_follow_up_date")
+  followUpCount     Int              @default(0) @map("follow_up_count")
+  internalNotes     String?          @map("internal_notes")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  contacts          RenewalContact[]
+  assignedAgent     User?            @relation("AgentRenewals", fields: [assignedAgentId], references: [id])
+  business          Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  currentPackage    Package          @relation("CurrentPackageRenewals", fields: [currentPackageId], references: [id])
+  newPackage        Package?         @relation("NewPackageRenewals", fields: [newPackageId], references: [id])
+
+  @@unique([businessId, expiryDate])
+  @@index([businessId])
+  @@index([status])
+  @@index([assignedAgentId])
+  @@index([expiryDate])
+  @@index([priority])
+  @@index([nextFollowUpDate])
+  @@index([status, assignedAgentId])
+  @@map("renewal_records")
+}
+
+model RenewalContact {
+  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  renewalRecordId String           @map("renewal_record_id") @db.Uuid
+  agentId         String           @map("agent_id") @db.Uuid
+  contactMethod   ContactMethod    @map("contact_method")
+  contactDate     DateTime         @map("contact_date")
+  duration        Int?
+  outcome         RenewalDecision?
+  notes           String?
+  visitAddress    String?          @map("visit_address")
+  visitLatitude   Decimal?         @map("visit_latitude") @db.Decimal(10, 8)
+  visitLongitude  Decimal?         @map("visit_longitude") @db.Decimal(11, 8)
+  nextContactDate DateTime?        @map("next_contact_date")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  agent           User             @relation("AgentContacts", fields: [agentId], references: [id], onDelete: Cascade)
+  renewalRecord   RenewalRecord    @relation(fields: [renewalRecordId], references: [id], onDelete: Cascade)
+
+  @@index([renewalRecordId])
+  @@index([agentId])
+  @@index([contactDate])
+  @@index([contactMethod])
+  @@map("renewal_contacts")
+}
+
+model ActivityLog {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  oldData   Json?    @map("old_data")
+  newData   Json?    @map("new_data")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@map("activity_logs")
+}
+
+model GovernorateManager {
+  id                    String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId                String              @map("user_id") @db.Uuid
+  governorateId         String              @map("governorate_id") @db.Uuid
+  isActive              Boolean             @default(true) @map("is_active")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  companyCommissionRate Decimal             @default(15) @map("company_commission_rate") @db.Decimal(5, 2)
+  governorate           Governorate         @relation(fields: [governorateId], references: [id], onDelete: Cascade)
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  settlements           ManagerSettlement[]
+
+  @@unique([userId, governorateId])
+  @@index([userId])
+  @@index([governorateId])
+  @@index([isActive])
+  @@map("governorate_managers")
+}
+
+model AgentProfile {
+  id                 String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId             String              @unique @map("user_id") @db.Uuid
+  managerId          String?             @map("manager_id") @db.Uuid
+  baseSalary         Decimal             @default(0) @map("base_salary") @db.Decimal(10, 2)
+  commissionRate     Decimal             @default(10) @map("commission_rate") @db.Decimal(5, 2)
+  totalEarnings      Decimal             @default(0) @map("total_earnings") @db.Decimal(12, 2)
+  totalCommissions   Decimal             @default(0) @map("total_commissions") @db.Decimal(12, 2)
+  totalBusinesses    Int                 @default(0) @map("total_businesses")
+  totalRenewals      Int                 @default(0) @map("total_renewals")
+  totalVisits        Int                 @default(0) @map("total_visits")
+  isActive           Boolean             @default(true) @map("is_active")
+  hiredAt            DateTime            @default(now()) @map("hired_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  requiresApproval   Boolean             @default(true) @map("requires_approval")
+  collections        AgentCollection[]
+  commissions        AgentCommission[]
+  governorates       AgentGovernorate[]
+  manager            User?               @relation("AgentManager", fields: [managerId], references: [id])
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  settlements        AgentSettlement[]
+  visits             AgentVisit[]
+  commissionPayments CommissionPayment[]
+
+  @@index([userId])
+  @@index([managerId])
+  @@index([isActive])
+  @@map("agent_profiles")
+}
+
+model AgentGovernorate {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  agentProfileId String       @map("agent_profile_id") @db.Uuid
+  governorateId  String       @map("governorate_id") @db.Uuid
+  isActive       Boolean      @default(true) @map("is_active")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  governorate    Governorate  @relation(fields: [governorateId], references: [id], onDelete: Cascade)
+
+  @@unique([agentProfileId, governorateId])
+  @@index([agentProfileId])
+  @@index([governorateId])
+  @@map("agent_governorates")
+}
+
+model AgentCommission {
+  id                 String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  agentProfileId     String           @map("agent_profile_id") @db.Uuid
+  businessId         String           @map("business_id") @db.Uuid
+  subscriptionAmount Decimal          @map("subscription_amount") @db.Decimal(10, 2)
+  commissionRate     Decimal          @map("commission_rate") @db.Decimal(5, 2)
+  commissionAmount   Decimal          @map("commission_amount") @db.Decimal(10, 2)
+  type               CommissionType
+  status             CommissionStatus @default(PENDING)
+  approvedAt         DateTime?        @map("approved_at")
+  paidAt             DateTime?        @map("paid_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  notes              String?
+  agentProfile       AgentProfile     @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  business           Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([agentProfileId])
+  @@index([businessId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("agent_commissions")
+}
+
+model AgentVisit {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  agentProfileId String       @map("agent_profile_id") @db.Uuid
+  businessId     String?      @map("business_id") @db.Uuid
+  purpose        VisitPurpose
+  status         VisitStatus  @default(PLANNED)
+  governorateId  String       @map("governorate_id") @db.Uuid
+  cityId         String?      @map("city_id") @db.Uuid
+  address        String?
+  latitude       Decimal?     @db.Decimal(10, 8)
+  longitude      Decimal?     @db.Decimal(11, 8)
+  scheduledAt    DateTime     @map("scheduled_at")
+  startedAt      DateTime?    @map("started_at")
+  completedAt    DateTime?    @map("completed_at")
+  notes          String?
+  outcome        String?
+  photos         String[]
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  business       Business?    @relation(fields: [businessId], references: [id])
+  city           City?        @relation(fields: [cityId], references: [id])
+  governorate    Governorate  @relation(fields: [governorateId], references: [id])
+
+  @@index([agentProfileId])
+  @@index([businessId])
+  @@index([status])
+  @@index([purpose])
+  @@index([scheduledAt])
+  @@index([governorateId])
+  @@map("agent_visits")
+}
+
+model AgentCollection {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  agentProfileId String           @map("agent_profile_id") @db.Uuid
+  businessId     String?          @map("business_id") @db.Uuid
+  amount         Decimal          @map("amount") @db.Decimal(12, 2)
+  description    String?
+  receiptNumber  String?          @map("receipt_number")
+  status         CollectionStatus @default(COLLECTED)
+  collectedAt    DateTime         @default(now()) @map("collected_at")
+  settledAt      DateTime?        @map("settled_at")
+  verifiedAt     DateTime?        @map("verified_at")
+  settlementId   String?          @map("settlement_id") @db.Uuid
+  attachments    String[]
+  notes          String?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  agentProfile   AgentProfile     @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  business       Business?        @relation(fields: [businessId], references: [id])
+  settlement     AgentSettlement? @relation(fields: [settlementId], references: [id])
+
+  @@index([agentProfileId])
+  @@index([businessId])
+  @@index([status])
+  @@index([collectedAt])
+  @@index([settlementId])
+  @@map("agent_collections")
+}
+
+model AgentSettlement {
+  id               String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  agentProfileId   String            @map("agent_profile_id") @db.Uuid
+  totalAmount      Decimal           @map("total_amount") @db.Decimal(12, 2)
+  collectionIds    String[]          @map("collection_ids") @db.Uuid
+  status           SettlementStatus  @default(PENDING)
+  receivedByUserId String?           @map("received_by_user_id") @db.Uuid
+  requestedAt      DateTime          @default(now()) @map("requested_at")
+  approvedAt       DateTime?         @map("approved_at")
+  completedAt      DateTime?         @map("completed_at")
+  receiptNumber    String?           @map("receipt_number")
+  attachments      String[]
+  notes            String?
+  rejectionReason  String?           @map("rejection_reason")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  collections      AgentCollection[]
+  agentProfile     AgentProfile      @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  receivedBy       User?             @relation("SettlementReceiver", fields: [receivedByUserId], references: [id])
+
+  @@index([agentProfileId])
+  @@index([status])
+  @@index([requestedAt])
+  @@index([receivedByUserId])
+  @@map("agent_settlements")
+}
+
+model ManagerSettlement {
+  id                    String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  governorateManagerId  String             @map("governorate_manager_id") @db.Uuid
+  totalRevenue          Decimal            @map("total_revenue") @db.Decimal(12, 2)
+  companyCommission     Decimal            @map("company_commission") @db.Decimal(12, 2)
+  companyCommissionRate Decimal            @map("company_commission_rate") @db.Decimal(5, 2)
+  netAmount             Decimal            @map("net_amount") @db.Decimal(12, 2)
+  periodStart           DateTime           @map("period_start")
+  periodEnd             DateTime           @map("period_end")
+  status                SettlementStatus   @default(PENDING)
+  receivedByUserId      String?            @map("received_by_user_id") @db.Uuid
+  requestedAt           DateTime           @default(now()) @map("requested_at")
+  approvedAt            DateTime?          @map("approved_at")
+  completedAt           DateTime?          @map("completed_at")
+  receiptNumber         String?            @map("receipt_number")
+  attachments           String[]
+  notes                 String?
+  rejectionReason       String?            @map("rejection_reason")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  governorateManager    GovernorateManager @relation(fields: [governorateManagerId], references: [id], onDelete: Cascade)
+  receivedBy            User?              @relation("ManagerSettlementReceiver", fields: [receivedByUserId], references: [id])
+
+  @@index([governorateManagerId])
+  @@index([status])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@index([receivedByUserId])
+  @@map("manager_settlements")
+}
+
+model CommissionPayment {
+  id               String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  agentProfileId   String        @map("agent_profile_id") @db.Uuid
+  baseSalary       Decimal       @map("base_salary") @db.Decimal(10, 2)
+  commissionAmount Decimal       @map("commission_amount") @db.Decimal(10, 2)
+  bonusAmount      Decimal       @default(0) @map("bonus_amount") @db.Decimal(10, 2)
+  deductionAmount  Decimal       @default(0) @map("deduction_amount") @db.Decimal(10, 2)
+  totalAmount      Decimal       @map("total_amount") @db.Decimal(10, 2)
+  periodStart      DateTime      @map("period_start")
+  periodEnd        DateTime      @map("period_end")
+  status           PaymentStatus @default(PENDING)
+  paymentMethod    PaymentMethod @default(CASH)
+  approvedAt       DateTime?     @map("approved_at")
+  paidAt           DateTime?     @map("paid_at")
+  approvedByUserId String?       @map("approved_by_user_id") @db.Uuid
+  paidByUserId     String?       @map("paid_by_user_id") @db.Uuid
+  receiptNumber    String?       @map("receipt_number")
+  attachments      String[]
+  notes            String?
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  agentProfile     AgentProfile  @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  approvedBy       User?         @relation("PaymentApprover", fields: [approvedByUserId], references: [id])
+  paidBy           User?         @relation("PaymentPayer", fields: [paidByUserId], references: [id])
+
+  @@index([agentProfileId])
+  @@index([status])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@index([paidAt])
+  @@map("commission_payments")
+}
+
+model UserBusinessCapability {
+  id          String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String                 @map("user_id") @db.Uuid
+  businessId  String                 @map("business_id") @db.Uuid
+  role        BusinessCapabilityRole
+  status      CapabilityStatus       @default(PENDING)
+  trustLevel  TrustLevel             @default(UNVERIFIED)
+  source      CapabilitySource
+  createdById String?                @map("created_by_id") @db.Uuid
+  verifiedAt  DateTime?              @map("verified_at")
+  activatedAt DateTime?              @map("activated_at")
+  revokedAt   DateTime?              @map("revoked_at")
+  permissions Json?                  @default("[]")
+  notes       String?
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  business    Business               @relation("BusinessCapabilities", fields: [businessId], references: [id], onDelete: Cascade)
+  createdBy   User?                  @relation("CapabilityCreator", fields: [createdById], references: [id])
+  user        User                   @relation("UserCapabilities", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId, role])
+  @@index([userId])
+  @@index([businessId])
+  @@index([status])
+  @@index([role])
+  @@map("user_business_capabilities")
+}
+
+model BusinessOwnershipInvitation {
+  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId      String           @map("business_id") @db.Uuid
+  phone           String
+  email           String?
+  ownerName       String?          @map("owner_name")
+  claimToken      String           @unique @map("claim_token")
+  status          CapabilityStatus @default(PENDING)
+  claimedByUserId String?          @map("claimed_by_user_id") @db.Uuid
+  claimedAt       DateTime?        @map("claimed_at")
+  createdById     String           @map("created_by_id") @db.Uuid
+  expiresAt       DateTime         @map("expires_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  business        Business         @relation("BusinessInvitations", fields: [businessId], references: [id], onDelete: Cascade)
+  claimedBy       User?            @relation("ClaimedInvitations", fields: [claimedByUserId], references: [id])
+  createdBy       User             @relation("CreatedInvitations", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([phone])
+  @@index([claimToken])
+  @@index([status])
+  @@map("business_ownership_invitations")
+}
+
+model BusinessOwnershipAudit {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  businessId      String   @map("business_id") @db.Uuid
+  userId          String?  @map("user_id") @db.Uuid
+  action          String
+  previousStatus  String?  @map("previous_status")
+  newStatus       String?  @map("new_status")
+  changes         Json?
+  performedBy     String   @map("performed_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  performedByUser User     @relation("OwnershipAuditPerformed", fields: [performedBy], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([performedBy])
+  @@map("business_ownership_audits")
+}
 
 enum UserRole {
-  SUPER_ADMIN  // مدير النظام
-  ADMIN        // مدير
-  MODERATOR    // مشرف
-  AGENT        // مندوب
-  BUSINESS     // صاحب نشاط
-  USER         // مستخدم عادي
+  ADMIN
+  SUPERVISOR
+  GOVERNORATE_MANAGER
+  AGENT
+  USER
+}
+
+enum BusinessCapabilityRole {
+  OWNER
+  MANAGER
+  CASHIER
+  STAFF
+  VIEWER
+}
+
+enum CapabilityStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  REVOKED
+}
+
+enum TrustLevel {
+  UNVERIFIED
+  FIELD_VERIFIED
+  OWNER_CONFIRMED
+  DOCUMENT_VERIFIED
+}
+
+enum CapabilitySource {
+  AGENT
+  ADMIN
+  SELF_CLAIMED
+  INVITATION
 }
 
 enum UserStatus {
@@ -33,19 +1318,19 @@ enum UserStatus {
 }
 
 enum BusinessStatus {
-  DRAFT          // مسودة
-  PENDING        // بانتظار المراجعة
-  APPROVED       // معتمد
-  REJECTED       // مرفوض
-  SUSPENDED      // معلق
-  CLOSED         // مغلق
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+  CLOSED
 }
 
 enum VerificationStatus {
-  UNVERIFIED     // غير موثق
-  PENDING        // بانتظار التوثيق
-  VERIFIED       // موثق
-  REJECTED       // مرفوض
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
 }
 
 enum DayOfWeek {
@@ -101,8 +1386,8 @@ enum MediaType {
 }
 
 enum ProductType {
-  PRODUCT    // منتج
-  SERVICE    // خدمة
+  PRODUCT
+  SERVICE
 }
 
 enum NotificationType {
@@ -111,6 +1396,62 @@ enum NotificationType {
   REVIEW
   AD
   VERIFICATION
+  SECURITY
+  WELCOME
+  PROFILE_REMINDER
+  BUSINESS_PENDING
+  BUSINESS_APPROVED
+  BUSINESS_REJECTED
+  BUSINESS_UPDATE
+  BUSINESS_REPORT
+  BUSINESS_UPDATE_REMINDER
+  SUBSCRIPTION_EXPIRING
+  SUBSCRIPTION_EXPIRED
+  SUBSCRIPTION_RENEWED
+  SUBSCRIPTION_UPGRADED
+  REVIEW_NEW
+  REVIEW_REPLY
+  REVIEW_PENDING
+  REVIEW_REJECTED
+  AD_APPROVED
+  AD_REJECTED
+  AD_EXPIRING
+  AGENT_TASK
+  AGENT_REMINDER
+  AGENT_PERFORMANCE
+  RENEWAL_REMINDER
+  RENEWAL_ASSIGNED
+  RENEWAL_COMPLETED
+  PROMOTIONAL
+  TARGETED
+}
+
+enum RenewalStatus {
+  PENDING
+  CONTACTED
+  VISIT_SCHEDULED
+  VISITED
+  RENEWED
+  DECLINED
+  POSTPONED
+  NO_RESPONSE
+  EXPIRED
+}
+
+enum ContactMethod {
+  PHONE_CALL
+  WHATSAPP
+  VISIT
+  EMAIL
+  SMS
+}
+
+enum RenewalDecision {
+  ACCEPTED
+  DECLINED
+  THINKING
+  UPGRADE
+  DOWNGRADE
 }
 
 enum ContactType {
@@ -129,707 +1470,40 @@ enum ContactType {
   OTHER
 }
 
-// ===========================================
-// USER & AUTHENTICATION
-// ===========================================
-
-model User {
-  id              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  email           String       @unique
-  phone           String       @unique  // Required field
-  password        String
-  role            UserRole     @default(USER)
-  status          UserStatus   @default(ACTIVE)
-  
-  // Profile
-  firstName       String       @map("first_name")  // Required field
-  lastName        String       @map("last_name")   // Required field
-  displayName     String?      @map("display_name")
-  avatar          String?
-  bio             String?
-  
-  // Address - Required for targeting
-  governorateId   String?      @map("governorate_id") @db.Uuid
-  cityId          String?      @map("city_id") @db.Uuid
-  districtId      String?      @map("district_id") @db.Uuid
-  addressLine     String?      @map("address_line")
-  
-  // Verification
-  emailVerified   Boolean      @default(false) @map("email_verified")
-  phoneVerified   Boolean      @default(false) @map("phone_verified")
-  verifiedAt      DateTime?    @map("verified_at")
-  
-  // Metadata
-  lastLoginAt     DateTime?    @map("last_login_at")
-  lastLoginIp     String?      @map("last_login_ip")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
-  deletedAt       DateTime?    @map("deleted_at")
-  
-  // Relations
-  governorate     Governorate? @relation(fields: [governorateId], references: [id], onDelete: SetNull)
-  city            City?        @relation(fields: [cityId], references: [id], onDelete: SetNull)
-  district        District?    @relation(fields: [districtId], references: [id], onDelete: SetNull)
-  sessions        Session[]
-  businesses      Business[]        @relation("BusinessOwner")
-  agentBusinesses Business[]        @relation("BusinessAgent")
-  reviews         Review[]
-  notifications   Notification[]
-  createdBusinesses Business[]      @relation("BusinessCreator")
-  businessPersons BusinessPerson[]
-  activityLogs    ActivityLog[]
-  
-  @@index([email])
-  @@index([phone])
-  @@index([role])
-  @@index([status])
-  @@index([governorateId])
-  @@index([cityId])
-  @@index([districtId])
-  @@map("users")
-}
-
-model Session {
-  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId       String    @map("user_id") @db.Uuid
-  token        String    @unique
-  refreshToken String?   @unique @map("refresh_token")
-  userAgent    String?   @map("user_agent")
-  ipAddress    String?   @map("ip_address")
-  expiresAt    DateTime  @map("expires_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@index([userId])
-  @@index([token])
-  @@map("sessions")
-}
-
-model PasswordReset {
-  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  email     String
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  createdAt DateTime @default(now()) @map("created_at")
-  
-  @@index([email])
-  @@index([token])
-  @@map("password_resets")
-}
-
-// OTP للتحقق من رقم الهاتف
-model PhoneOtp {
-  id        String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  phone     String
-  code      String
-  purpose   OtpPurpose @default(VERIFY_PHONE)
-  attempts  Int       @default(0)
-  verified  Boolean   @default(false)
-  expiresAt DateTime  @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  
-  @@index([phone])
-  @@index([phone, code])
-  @@map("phone_otps")
-}
-
 enum OtpPurpose {
   VERIFY_PHONE
   RESET_PASSWORD
   LOGIN
 }
 
-// ===========================================
-// GEOGRAPHY
-// ===========================================
-
-model Governorate {
-  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  slug         String   @unique
-  nameAr       String   @map("name_ar")
-  nameEn       String?  @map("name_en")
-  description  String?
-  latitude     Decimal? @db.Decimal(10, 8)
-  longitude    Decimal? @db.Decimal(11, 8)
-  sortOrder    Int      @default(0) @map("sort_order")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  
-  cities       City[]
-  businesses   Business[]
-  users        User[]
-  adTargets    AdGovernorate[] // الإعلانات المستهدفة لهذه المحافظة
-  
-  @@index([slug])
-  @@index([isActive])
-  @@index([sortOrder])
-  @@map("governorates")
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
 }
 
-model City {
-  id            String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  governorateId String      @map("governorate_id") @db.Uuid
-  slug          String      @unique
-  nameAr        String      @map("name_ar")
-  nameEn        String?     @map("name_en")
-  description   String?
-  latitude      Decimal?    @db.Decimal(10, 8)
-  longitude     Decimal?    @db.Decimal(11, 8)
-  sortOrder     Int         @default(0) @map("sort_order")
-  isActive      Boolean     @default(true) @map("is_active")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  
-  governorate   Governorate @relation(fields: [governorateId], references: [id], onDelete: Cascade)
-  districts     District[]
-  businesses    Business[]
-  branches      BusinessBranch[]
-  users         User[]
-  adTargets     AdCity[] // الإعلانات المستهدفة لهذه المدينة
-  
-  @@index([governorateId])
-  @@index([slug])
-  @@index([isActive])
-  @@index([sortOrder])
-  @@map("cities")
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  EMAIL
+  SMS
 }
 
-model District {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  cityId      String   @map("city_id") @db.Uuid
-  slug        String   @unique
-  nameAr      String   @map("name_ar")
-  nameEn      String?  @map("name_en")
-  description String?
-  latitude    Decimal? @db.Decimal(10, 8)
-  longitude   Decimal? @db.Decimal(11, 8)
-  sortOrder   Int      @default(0) @map("sort_order")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
-  city        City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  businesses  Business[]
-  branches    BusinessBranch[]
-  users       User[]
-  
-  @@index([cityId])
-  @@index([slug])
-  @@index([isActive])
-  @@index([sortOrder])
-  @@map("districts")
+enum BulkNotificationStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
 }
 
-// ===========================================
-// CATEGORIES
-// ===========================================
-
-model Category {
-  id            String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  parentId      String?    @map("parent_id") @db.Uuid
-  slug          String     @unique
-  nameAr        String     @map("name_ar")
-  nameEn        String?    @map("name_en")
-  descriptionAr String?    @map("description_ar")
-  descriptionEn String?    @map("description_en")
-  icon          String?
-  image         String?
-  color         String?
-  sortOrder     Int        @default(0) @map("sort_order")
-  isActive      Boolean    @default(true) @map("is_active")
-  isFeatured    Boolean    @default(false) @map("is_featured")
-  metaTitleAr   String?    @map("meta_title_ar")
-  metaTitleEn   String?    @map("meta_title_en")
-  metaDescAr    String?    @map("meta_desc_ar")
-  metaDescEn    String?    @map("meta_desc_en")
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
-  
-  parent        Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children      Category[] @relation("CategoryHierarchy")
-  businesses    BusinessCategory[]
-  
-  @@index([parentId])
-  @@index([slug])
-  @@index([isActive])
-  @@index([isFeatured])
-  @@index([sortOrder])
-  @@map("categories")
+enum DeviceType {
+  IOS
+  ANDROID
+  WEB
 }
-
-// ===========================================
-// BUSINESS (النشاط التجاري)
-// ===========================================
-
-model Business {
-  id                 String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  
-  // Basic Info (Translatable)
-  slug               String             @unique
-  nameAr             String             @map("name_ar")
-  nameEn             String?            @map("name_en")
-  descriptionAr      String?            @map("description_ar") @db.Text
-  descriptionEn      String?            @map("description_en") @db.Text
-  shortDescAr        String?            @map("short_desc_ar")
-  shortDescEn        String?            @map("short_desc_en")
-  
-  // Branding
-  logo               String?
-  cover              String?
-  
-  // Location (Main)
-  governorateId      String             @map("governorate_id") @db.Uuid
-  cityId             String             @map("city_id") @db.Uuid
-  districtId         String?            @map("district_id") @db.Uuid
-  addressAr          String?            @map("address_ar")
-  addressEn          String?            @map("address_en")
-  latitude           Decimal?           @db.Decimal(10, 8)
-  longitude          Decimal?           @db.Decimal(11, 8)
-  
-  // Status
-  status             BusinessStatus     @default(DRAFT)
-  verificationStatus VerificationStatus @default(UNVERIFIED) @map("verification_status")
-  verifiedAt         DateTime?          @map("verified_at")
-  
-  // Flags
-  isFeatured         Boolean            @default(false) @map("is_featured")
-  isVerified         Boolean            @default(false) @map("is_verified")
-  isActive           Boolean            @default(true) @map("is_active")
-  
-  // Statistics (Denormalized for performance)
-  viewsCount         Int                @default(0) @map("views_count")
-  reviewsCount       Int                @default(0) @map("reviews_count")
-  averageRating      Decimal            @default(0) @db.Decimal(2, 1) @map("average_rating")
-  
-  // SEO
-  metaTitleAr        String?            @map("meta_title_ar")
-  metaTitleEn        String?            @map("meta_title_en")
-  metaDescAr         String?            @map("meta_desc_ar")
-  metaDescEn         String?            @map("meta_desc_en")
-  metaKeywordsAr     String?            @map("meta_keywords_ar")
-  metaKeywordsEn     String?            @map("meta_keywords_en")
-  
-  // Ownership
-  ownerId            String?            @map("owner_id") @db.Uuid
-  agentId            String?            @map("agent_id") @db.Uuid
-  createdById        String?            @map("created_by_id") @db.Uuid
-  
-  // Timestamps
-  publishedAt        DateTime?          @map("published_at")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
-  deletedAt          DateTime?          @map("deleted_at")
-  
-  // Relations
-  governorate        Governorate        @relation(fields: [governorateId], references: [id])
-  city               City               @relation(fields: [cityId], references: [id])
-  district           District?          @relation(fields: [districtId], references: [id])
-  owner              User?              @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  agent              User?              @relation("BusinessAgent", fields: [agentId], references: [id], onDelete: SetNull)
-  createdBy          User?              @relation("BusinessCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  
-  categories         BusinessCategory[]
-  branches           BusinessBranch[]
-  workingHours       BusinessWorkingHours[]
-  contacts           BusinessContact[]
-  media              BusinessMedia[]
-  persons            BusinessPerson[]
-  products           BusinessProduct[]
-  reviews            Review[]
-  ads                Ad[]
-  views              BusinessView[]
-  package            BusinessPackage?
-
-  @@index([slug])
-  @@index([status])
-  @@index([verificationStatus])
-  @@index([governorateId])
-  @@index([cityId])
-  @@index([districtId])
-  @@index([ownerId])
-  @@index([agentId])
-  @@index([isFeatured])
-  @@index([isVerified])
-  @@index([isActive])
-  @@index([averageRating])
-  @@index([createdAt])
-  @@index([status, governorateId])
-  @@index([status, cityId])
-  @@index([status, isFeatured])
-  @@index([status, isVerified])
-  @@map("businesses")
-}
-
-model BusinessCategory {
-  businessId String   @map("business_id") @db.Uuid
-  categoryId String   @map("category_id") @db.Uuid
-  isPrimary  Boolean  @default(false) @map("is_primary")
-  createdAt  DateTime @default(now()) @map("created_at")
-  
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  
-  @@index([businessId])
-  @@index([categoryId])
-  @@index([isPrimary])
-  @@index([createdAt])
-  @@id([businessId, categoryId])
-  @@map("business_categories")
-}
-
-model BusinessBranch {
-  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId  String    @map("business_id") @db.Uuid
-  nameAr      String    @map("name_ar")
-  nameEn      String?   @map("name_en")
-  cityId      String    @map("city_id") @db.Uuid
-  districtId  String?   @map("district_id") @db.Uuid
-  addressAr   String?   @map("address_ar")
-  addressEn   String?   @map("address_en")
-  latitude    Decimal?  @db.Decimal(10, 8)
-  longitude   Decimal?  @db.Decimal(11, 8)
-  phone       String?
-  isMain      Boolean   @default(false) @map("is_main")
-  isActive    Boolean   @default(true) @map("is_active")
-  sortOrder   Int       @default(0) @map("sort_order")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  city        City      @relation(fields: [cityId], references: [id])
-  district    District? @relation(fields: [districtId], references: [id])
-  workingHours BusinessWorkingHours[]
-  contacts    BusinessContact[]
-  
-  @@index([businessId])
-  @@index([cityId])
-  @@index([districtId])
-  @@index([isActive])
-  @@index([sortOrder])
-  @@map("business_branches")
-}
-
-model BusinessWorkingHours {
-  id          String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId  String          @map("business_id") @db.Uuid
-  branchId    String?         @map("branch_id") @db.Uuid
-  dayOfWeek   DayOfWeek       @map("day_of_week")
-  openTime    String?         @map("open_time")  // Format: "HH:mm"
-  closeTime   String?         @map("close_time") // Format: "HH:mm"
-  isClosed    Boolean         @default(false) @map("is_closed")
-  is24Hours   Boolean         @default(false) @map("is_24_hours")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  
-  business    Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  branch      BusinessBranch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  
-  @@unique([businessId, branchId, dayOfWeek])
-  @@index([businessId])
-  @@index([branchId])
-  @@map("business_working_hours")
-}
-
-model BusinessContact {
-  id          String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId  String          @map("business_id") @db.Uuid
-  branchId    String?         @map("branch_id") @db.Uuid
-  type        ContactType
-  value       String
-  label       String?
-  isPrimary   Boolean         @default(false) @map("is_primary")
-  isPublic    Boolean         @default(true) @map("is_public")
-  sortOrder   Int             @default(0) @map("sort_order")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  
-  business    Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  branch      BusinessBranch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  
-  @@index([businessId])
-  @@index([branchId])
-  @@index([type])
-  @@map("business_contacts")
-}
-
-model BusinessMedia {
-  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId  String    @map("business_id") @db.Uuid
-  type        MediaType
-  url         String
-  thumbnailUrl String?  @map("thumbnail_url")
-  titleAr     String?   @map("title_ar")
-  titleEn     String?   @map("title_en")
-  altAr       String?   @map("alt_ar")
-  altEn       String?   @map("alt_en")
-  sortOrder   Int       @default(0) @map("sort_order")
-  isActive    Boolean   @default(true) @map("is_active")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  
-  @@index([businessId])
-  @@index([type])
-  @@map("business_media")
-}
-
-model BusinessPerson {
-  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId  String    @map("business_id") @db.Uuid
-  userId      String?   @map("user_id") @db.Uuid
-  nameAr      String    @map("name_ar")
-  nameEn      String?   @map("name_en")
-  positionAr  String?   @map("position_ar")
-  positionEn  String?   @map("position_en")
-  bioAr       String?   @map("bio_ar")
-  bioEn       String?   @map("bio_en")
-  photo       String?
-  phone       String?
-  email       String?
-  isPublic    Boolean   @default(true) @map("is_public")
-  sortOrder   Int       @default(0) @map("sort_order")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  @@index([businessId])
-  @@index([userId])
-  @@index([sortOrder])
-  @@map("business_persons")
-}
-
-model BusinessProduct {
-  id            String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId    String       @map("business_id") @db.Uuid
-  type          ProductType  @default(PRODUCT)
-  nameAr        String       @map("name_ar")
-  nameEn        String?      @map("name_en")
-  descriptionAr String?      @map("description_ar") @db.Text
-  descriptionEn String?      @map("description_en") @db.Text
-  image         String?
-  price         Decimal?     @db.Decimal(12, 2)
-  currency      String?      @default("SYP") // SYP, USD, EUR
-  priceNote     String?      @map("price_note") // مثال: "يبدأ من" أو "حسب الطلب"
-  isAvailable   Boolean      @default(true) @map("is_available")
-  isFeatured    Boolean      @default(false) @map("is_featured")
-  sortOrder     Int          @default(0) @map("sort_order")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-  
-  business      Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  
-  @@index([businessId])
-  @@index([type])
-  @@index([isAvailable])
-  @@index([isFeatured])
-  @@map("business_products")
-}
-
-model BusinessView {
-  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId String   @map("business_id") @db.Uuid
-  date       DateTime @default(now()) @db.Date
-  count      Int      @default(1)
-  
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, date])
-  @@index([date])
-  @@map("business_views")
-}
-
-// ===========================================
-// REVIEWS
-// ===========================================
-
-model Review {
-  id          String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId  String       @map("business_id") @db.Uuid
-  userId      String       @map("user_id") @db.Uuid
-  rating      Int          // 1-5
-  titleAr     String?      @map("title_ar")
-  titleEn     String?      @map("title_en")
-  contentAr   String?      @map("content_ar") @db.Text
-  contentEn   String?      @map("content_en") @db.Text
-  pros        String[]     @default([])
-  cons        String[]     @default([])
-  status      ReviewStatus @default(PENDING)
-  isVerified  Boolean      @default(false) @map("is_verified")
-  helpfulCount Int         @default(0) @map("helpful_count")
-  reportCount Int          @default(0) @map("report_count")
-  ipAddress   String?      @map("ip_address")
-  userAgent   String?      @map("user_agent")
-  replyAr     String?      @map("reply_ar") @db.Text
-  replyEn     String?      @map("reply_en") @db.Text
-  repliedAt   DateTime?    @map("replied_at")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  
-  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@index([businessId])
-  @@index([userId])
-  @@index([status])
-  @@index([rating])
-  @@index([createdAt])
-  @@map("reviews")
-}
-
-// ===========================================
-// ADVERTISEMENTS
-// ===========================================
-
-model Ad {
-  id           String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId   String?    @map("business_id") @db.Uuid
-  type         AdType
-  position     AdPosition
-  titleAr      String     @map("title_ar")
-  titleEn      String?    @map("title_en")
-  descriptionAr String?   @map("description_ar")
-  descriptionEn String?   @map("description_en")
-  imageDesktop String?    @map("image_desktop")
-  imageMobile  String?    @map("image_mobile")
-  linkUrl      String?    @map("link_url")
-  status       AdStatus   @default(DRAFT)
-  priority     Int        @default(0)
-  startDate    DateTime   @map("start_date")
-  endDate      DateTime   @map("end_date")
-  impressions  Int        @default(0)
-  clicks       Int        @default(0)
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  
-  // Geographic Targeting - الاستهداف الجغرافي
-  // إذا كانت فارغة = يظهر للجميع، إذا محددة = يظهر فقط لهذه المناطق
-  targetAllLocations Boolean @default(true) @map("target_all_locations") // استهداف كل المواقع
-  
-  business     Business?  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  targetGovernorates AdGovernorate[] // المحافظات المستهدفة
-  targetCities       AdCity[]        // المدن المستهدفة
-  
-  @@index([businessId])
-  @@index([status])
-  @@index([type])
-  @@index([position])
-  @@index([startDate])
-  @@index([endDate])
-  @@index([targetAllLocations])
-  @@map("ads")
-}
-
-// جدول وسيط للمحافظات المستهدفة في الإعلان
-model AdGovernorate {
-  id            String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  adId          String      @map("ad_id") @db.Uuid
-  governorateId String      @map("governorate_id") @db.Uuid
-  
-  ad            Ad          @relation(fields: [adId], references: [id], onDelete: Cascade)
-  governorate   Governorate @relation(fields: [governorateId], references: [id], onDelete: Cascade)
-  
-  @@unique([adId, governorateId])
-  @@index([adId])
-  @@index([governorateId])
-  @@map("ad_governorates")
-}
-
-// جدول وسيط للمدن المستهدفة في الإعلان
-model AdCity {
-  id     String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  adId   String @map("ad_id") @db.Uuid
-  cityId String @map("city_id") @db.Uuid
-  
-  ad     Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
-  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  
-  @@unique([adId, cityId])
-  @@index([adId])
-  @@index([cityId])
-  @@map("ad_cities")
-}
-
-// ===========================================
-// NOTIFICATIONS
-// ===========================================
-
-model Notification {
-  id          String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId      String           @map("user_id") @db.Uuid
-  type        NotificationType
-  titleAr     String           @map("title_ar")
-  titleEn     String?          @map("title_en")
-  messageAr   String           @map("message_ar")
-  messageEn   String?          @map("message_en")
-  data        Json?
-  isRead      Boolean          @default(false) @map("is_read")
-  readAt      DateTime?        @map("read_at")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@index([userId])
-  @@index([isRead])
-  @@index([type])
-  @@index([createdAt])
-  @@map("notifications")
-}
-
-// ===========================================
-// SETTINGS
-// ===========================================
-
-model Setting {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  key         String   @unique
-  valueAr     String?  @map("value_ar") @db.Text
-  valueEn     String?  @map("value_en") @db.Text
-  type        String   @default("text") // text, textarea, number, boolean, json, image
-  group       String   @default("general")
-  description String?
-  isPublic    Boolean  @default(false) @map("is_public")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
-  @@index([key])
-  @@index([group])
-  @@map("settings")
-}
-
-// ===========================================
-// PAGES (Static Pages)
-// ===========================================
-
-model Page {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  slug        String   @unique
-  titleAr     String   @map("title_ar")
-  titleEn     String?  @map("title_en")
-  contentAr   String   @map("content_ar") @db.Text
-  contentEn   String?  @map("content_en") @db.Text
-  metaTitleAr String?  @map("meta_title_ar")
-  metaTitleEn String?  @map("meta_title_en")
-  metaDescAr  String?  @map("meta_desc_ar")
-  metaDescEn  String?  @map("meta_desc_en")
-  isPublished Boolean  @default(false) @map("is_published")
-  sortOrder   Int      @default(0) @map("sort_order")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
-  @@index([slug])
-  @@index([isPublished])
-  @@map("pages")
-}
-
-// ===========================================
-// SUBSCRIPTION PACKAGES (نظام الباقات)
-// ===========================================
 
 enum PackageStatus {
   ACTIVE
@@ -838,142 +1512,655 @@ enum PackageStatus {
 }
 
 enum FeatureKey {
-  AD_ALLOWED              // السماح بالإعلانات
-  VERIFIED_BADGE          // شارة التحقق
-  FEATURED_LISTING        // ظهور في القائمة المميزة
-  CUSTOM_LINKS            // روابط مخصصة
-  PRIORITY_SUPPORT        // دعم فني ذو أولوية
-  ANALYTICS_DASHBOARD     // لوحة إحصائيات متقدمة
-  UNLIMITED_PHOTOS        // صور غير محدودة
+  SHOW_DESCRIPTION
+  SHOW_GALLERY
+  SHOW_TEAM
+  SHOW_PRODUCTS
+  SHOW_BRANCHES
+  SHOW_WORKING_HOURS
+  SHOW_REVIEWS
+  SHOW_PHONE
+  SHOW_WHATSAPP
+  SHOW_EMAIL
+  SHOW_WEBSITE
+  SHOW_SOCIAL_LINKS
+  SHOW_MAP
+  SHOW_ADDRESS
+  AD_ALLOWED
 }
 
 enum LimitKey {
-  MAX_BRANCHES            // الحد الأقصى للفروع
-  MAX_PERSONS             // الحد الأقصى للأشخاص
-  MAX_ADS                 // الحد الأقصى للإعلانات النشطة
-  MAX_GALLERY_PHOTOS      // الحد الأقصى للصور في المعرض
-  MAX_PRODUCTS            // الحد الأقصى للمنتجات/الخدمات
+  MAX_BRANCHES
+  MAX_PERSONS
+  MAX_ADS
+  MAX_GALLERY_PHOTOS
+  MAX_PRODUCTS
 }
 
-model Package {
-  id            String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nameAr        String         @map("name_ar")
-  nameEn        String?        @map("name_en")
-  slug          String         @unique
-  descriptionAr String?        @map("description_ar") @db.Text
-  descriptionEn String?        @map("description_en") @db.Text
-  price         Decimal        @db.Decimal(12, 2)
-  durationDays  Int            @map("duration_days") // المدة بالأيام
-  status        PackageStatus  @default(ACTIVE)
-  isPublic      Boolean        @default(true) @map("is_public")
-  isDefault     Boolean        @default(false) @map("is_default") // الباقة الافتراضية عند انتهاء الاشتراك
-  sortOrder     Int            @default(0) @map("sort_order")
-  
-  features      PackageFeature[]
-  limits        PackageLimit[]
-  businessPackages BusinessPackage[]
-  
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-
-  @@index([status])
-  @@index([isPublic])
-  @@index([isDefault])
-  @@index([sortOrder])
-  @@map("packages")
+enum CommissionType {
+  NEW_SUBSCRIPTION
+  RENEWAL
+  UPGRADE
 }
 
-model PackageFeature {
-  id          String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  packageId   String     @map("package_id") @db.Uuid
-  featureKey  FeatureKey @map("feature_key")
-  isEnabled   Boolean    @default(true) @map("is_enabled")
-  
-  package     Package    @relation(fields: [packageId], references: [id], onDelete: Cascade)
-
-  @@unique([packageId, featureKey])
-  @@map("package_features")
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
 }
 
-model PackageLimit {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  packageId   String   @map("package_id") @db.Uuid
-  limitKey    LimitKey @map("limit_key")
-  limitValue  Int      @map("limit_value")
-  
-  package     Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
-
-  @@unique([packageId, limitKey])
-  @@map("package_limits")
+enum VisitStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
 }
 
-model BusinessPackage {
-  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessId    String    @map("business_id") @db.Uuid @unique
-  packageId     String    @map("package_id") @db.Uuid
-  startDate     DateTime  @default(now()) @map("start_date")
-  endDate       DateTime? @map("end_date")
-  isActive      Boolean   @default(true) @map("is_active")
-  autoRenew     Boolean   @default(false) @map("auto_renew")
-  
-  // Admin Override Fields - حقول التجاوز الإداري
-  overrideEnabled   Boolean   @default(false) @map("override_enabled") // هل التجاوز مفعل؟
-  overrideReason    String?   @map("override_reason") // سبب التجاوز
-  overrideExpiresAt DateTime? @map("override_expires_at") // تاريخ انتهاء التجاوز
-  overrideByUserId  String?   @map("override_by_user_id") @db.Uuid // من قام بالتجاوز
-  
-  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  package       Package   @relation(fields: [packageId], references: [id])
-  history       PackageHistory[]
-
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-
-  @@index([businessId])
-  @@index([packageId])
-  @@index([isActive])
-  @@index([overrideEnabled])
-  @@map("business_packages")
+enum VisitPurpose {
+  NEW_REGISTRATION
+  RENEWAL
+  UPDATE_DATA
+  COMPLAINT
+  SUPPORT
+  VERIFICATION
 }
 
-model PackageHistory {
-  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  businessPackageId String   @map("business_package_id") @db.Uuid
-  packageId         String   @map("package_id") @db.Uuid
-  action            String   // UPGRADE, DOWNGRADE, RENEWAL, CANCEL
-  oldPackageId      String?  @map("old_package_id") @db.Uuid
-  price             Decimal  @db.Decimal(12, 2)
-  startDate         DateTime @map("start_date")
-  endDate           DateTime @map("end_date")
-  createdAt         DateTime @default(now()) @map("created_at")
-  
-  businessPackage   BusinessPackage @relation(fields: [businessPackageId], references: [id], onDelete: Cascade)
-
-  @@map("package_history")
+enum CollectionStatus {
+  COLLECTED
+  SETTLED
+  VERIFIED
+  DISPUTED
 }
-// ===========================================
-// ACTIVITY LOG
-// ===========================================
 
-model ActivityLog {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId      String?  @map("user_id") @db.Uuid
-  action      String
-  entity      String
-  entityId    String?  @map("entity_id")
-  oldData     Json?    @map("old_data")
-  newData     Json?    @map("new_data")
-  ipAddress   String?  @map("ip_address")
-  userAgent   String?  @map("user_agent")
-  createdAt   DateTime @default(now()) @map("created_at")
-  
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
+enum SettlementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  MOBILE_WALLET
+  WALLET
+}
+
+// ==========================================
+// نظام المحفظة - Wallet System
+// ==========================================
+
+model Wallet {
+  id                String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId            String              @unique @map("user_id") @db.Uuid
+  balance           Decimal             @default(0) @map("balance") @db.Decimal(14, 2)
+  frozenBalance     Decimal             @default(0) @map("frozen_balance") @db.Decimal(14, 2)
+  totalDeposits     Decimal             @default(0) @map("total_deposits") @db.Decimal(14, 2)
+  totalWithdrawals  Decimal             @default(0) @map("total_withdrawals") @db.Decimal(14, 2)
+  totalSpent        Decimal             @default(0) @map("total_spent") @db.Decimal(14, 2)
+  currency          String              @default("SYP")
+  status            WalletStatus        @default(ACTIVE)
+  lastTransactionAt DateTime?           @map("last_transaction_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions      WalletTransaction[]
+  topUpRequests     WalletTopUp[]
+  withdrawRequests  WalletWithdrawal[]
+
   @@index([userId])
-  @@index([action])
-  @@index([entity])
-  @@index([entityId])
+  @@index([status])
+  @@index([balance])
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id              String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  walletId        String                   @map("wallet_id") @db.Uuid
+  type            WalletTransactionType
+  amount          Decimal                  @db.Decimal(14, 2)
+  balanceBefore   Decimal                  @map("balance_before") @db.Decimal(14, 2)
+  balanceAfter    Decimal                  @map("balance_after") @db.Decimal(14, 2)
+  description     String?
+  descriptionAr   String?                  @map("description_ar")
+  referenceType   WalletReferenceType?     @map("reference_type")
+  referenceId     String?                  @map("reference_id") @db.Uuid
+  status          WalletTransactionStatus  @default(COMPLETED)
+  metadata        Json?
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  wallet          Wallet                   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([type])
+  @@index([status])
+  @@index([referenceType, referenceId])
   @@index([createdAt])
-  @@index([entity, entityId])
-  @@map("activity_logs")
+  @@map("wallet_transactions")
+}
+
+model WalletTopUp {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  walletId        String            @map("wallet_id") @db.Uuid
+  amount          Decimal           @db.Decimal(14, 2)
+  method          TopUpMethod
+  status          TopUpStatus       @default(PENDING)
+  receiptNumber   String?           @map("receipt_number")
+  proofImage      String?           @map("proof_image")
+  processedByUserId String?         @map("processed_by_user_id") @db.Uuid
+  processedAt     DateTime?         @map("processed_at")
+  notes           String?
+  rejectionReason String?           @map("rejection_reason")
+  externalRef     String?           @map("external_ref")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  wallet          Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  processedBy     User?             @relation("TopUpProcessor", fields: [processedByUserId], references: [id])
+
+  @@index([walletId])
+  @@index([status])
+  @@index([method])
+  @@index([createdAt])
+  @@map("wallet_top_ups")
+}
+
+model WalletWithdrawal {
+  id                String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  walletId          String            @map("wallet_id") @db.Uuid
+  amount            Decimal           @db.Decimal(14, 2)
+  method            WithdrawalMethod
+  status            WithdrawalStatus  @default(PENDING)
+  bankName          String?           @map("bank_name")
+  accountNumber     String?           @map("account_number")
+  accountHolderName String?           @map("account_holder_name")
+  mobileWalletNumber String?          @map("mobile_wallet_number")
+  processedByUserId String?           @map("processed_by_user_id") @db.Uuid
+  processedAt       DateTime?         @map("processed_at")
+  completedAt       DateTime?         @map("completed_at")
+  receiptNumber     String?           @map("receipt_number")
+  notes             String?
+  rejectionReason   String?           @map("rejection_reason")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  wallet            Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  processedBy       User?             @relation("WithdrawalProcessor", fields: [processedByUserId], references: [id])
+
+  @@index([walletId])
+  @@index([status])
+  @@index([method])
+  @@index([createdAt])
+  @@map("wallet_withdrawals")
+}
+
+// Wallet Enums
+enum WalletStatus {
+  ACTIVE
+  FROZEN
+  SUSPENDED
+  CLOSED
+}
+
+enum WalletTransactionType {
+  DEPOSIT           // إيداع / شحن
+  WITHDRAWAL        // سحب
+  PAYMENT           // دفع (اشتراك، خدمة)
+  REFUND            // استرداد
+  COMMISSION        // عمولة مستلمة
+  BONUS             // مكافأة
+  TRANSFER_IN       // تحويل وارد
+  TRANSFER_OUT      // تحويل صادر
+  FEE               // رسوم
+  ADJUSTMENT        // تعديل إداري
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REVERSED
+}
+
+enum WalletReferenceType {
+  SUBSCRIPTION      // اشتراك نشاط تجاري
+  TOP_UP            // طلب شحن
+  WITHDRAWAL        // طلب سحب
+  COMMISSION        // عمولة
+  REFUND            // استرداد
+  TRANSFER          // تحويل
+  ADMIN_ACTION      // إجراء إداري
+}
+
+enum TopUpMethod {
+  BANK_TRANSFER     // تحويل بنكي
+  CASH_DEPOSIT      // إيداع نقدي
+  MOBILE_WALLET     // محفظة إلكترونية
+  CREDIT_CARD       // بطاقة ائتمان
+  AGENT_COLLECTION  // تحصيل من مندوب
+  ADMIN_CREDIT      // إضافة من الإدارة
+}
+
+enum TopUpStatus {
+  PENDING           // قيد الانتظار
+  APPROVED          // موافق عليها
+  REJECTED          // مرفوضة
+  COMPLETED         // مكتملة
+  CANCELLED         // ملغاة
+}
+
+enum WithdrawalMethod {
+  BANK_TRANSFER     // تحويل بنكي
+  CASH              // نقدي
+  MOBILE_WALLET     // محفظة إلكترونية
+  CHECK             // شيك
+}
+
+enum WithdrawalStatus {
+  PENDING           // قيد الانتظار
+  APPROVED          // موافق عليها
+  PROCESSING        // جاري التنفيذ
+  COMPLETED         // مكتملة
+  REJECTED          // مرفوضة
+  CANCELLED         // ملغاة
+}
+
+// ============================================================================
+// ACCOUNTING MODULE - النظام المحاسبي المركزي
+// ============================================================================
+
+// العملات
+model AccCurrency {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code        String   @unique @db.VarChar(3) // SYP, USD, EUR
+  nameAr      String   @map("name_ar")
+  nameEn      String   @map("name_en")
+  symbol      String   @db.VarChar(5)
+  decimalPlaces Int    @default(2) @map("decimal_places")
+  isBase      Boolean  @default(false) @map("is_base") // العملة الأساسية للنظام
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  exchangeRatesFrom AccExchangeRate[] @relation("FromCurrency")
+  exchangeRatesTo   AccExchangeRate[] @relation("ToCurrency")
+  accounts          AccAccount[]
+  journalEntries    AccJournalEntry[]
+  invoices          AccInvoice[]
+
+  @@map("acc_currencies")
+}
+
+// أسعار الصرف التاريخية
+model AccExchangeRate {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  fromCurrencyId String   @map("from_currency_id") @db.Uuid
+  toCurrencyId   String   @map("to_currency_id") @db.Uuid
+  rate           Decimal  @db.Decimal(18, 8)
+  effectiveDate  DateTime @map("effective_date")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  fromCurrency AccCurrency @relation("FromCurrency", fields: [fromCurrencyId], references: [id])
+  toCurrency   AccCurrency @relation("ToCurrency", fields: [toCurrencyId], references: [id])
+
+  @@unique([fromCurrencyId, toCurrencyId, effectiveDate])
+  @@index([effectiveDate])
+  @@map("acc_exchange_rates")
+}
+
+// شجرة الحسابات (Chart of Accounts)
+model AccAccount {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code           String           @unique @db.VarChar(20) // رمز الحساب (لا يتغير)
+  nameAr         String           @map("name_ar")
+  nameEn         String           @map("name_en")
+  accountType    AccAccountType   @map("account_type")
+  normalBalance  AccNormalBalance @map("normal_balance")
+  isPosting      Boolean          @default(true) @map("is_posting") // قابل للترحيل عليه
+  currencyMode   AccCurrencyMode  @default(MONO) @map("currency_mode")
+  currencyId     String?          @map("currency_id") @db.Uuid // للحسابات أحادية العملة
+  parentId       String?          @map("parent_id") @db.Uuid
+  level          Int              @default(1)
+  isSystemAccount Boolean         @default(false) @map("is_system_account") // حسابات النظام الأساسية
+  isActive       Boolean          @default(true) @map("is_active")
+  description    String?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  currency       AccCurrency?     @relation(fields: [currencyId], references: [id])
+  parent         AccAccount?      @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children       AccAccount[]     @relation("AccountHierarchy")
+  journalLines   AccJournalLine[]
+
+  @@index([accountType])
+  @@index([parentId])
+  @@index([code])
+  @@map("acc_accounts")
+}
+
+// الفترات المحاسبية
+model AccPeriod {
+  id          String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String          // مثال: "يناير 2026"
+  startDate   DateTime        @map("start_date")
+  endDate     DateTime        @map("end_date")
+  status      AccPeriodStatus @default(OPEN)
+  closedAt    DateTime?       @map("closed_at")
+  closedById  String?         @map("closed_by_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  journalEntries AccJournalEntry[]
+
+  @@unique([startDate, endDate])
+  @@index([status])
+  @@map("acc_periods")
+}
+
+// الضرائب
+model AccTax {
+  id           String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code         String        @unique @db.VarChar(20)
+  nameAr       String        @map("name_ar")
+  nameEn       String        @map("name_en")
+  taxType      AccTaxType    @map("tax_type")
+  rate         Decimal       @db.Decimal(8, 4) // نسبة مئوية أو مبلغ ثابت
+  isPercentage Boolean       @default(true) @map("is_percentage")
+  isInclusive  Boolean       @default(false) @map("is_inclusive") // مضمنة في السعر
+  scope        AccTaxScope   @default(ALL)
+  governorateId String?      @map("governorate_id") @db.Uuid // ضريبة محافظة محددة
+  // ربط الضريبة بحساب محاسبي (Tax Payable Account)
+  taxAccountId String?       @map("tax_account_id") @db.Uuid
+  revenueAdjustmentAccountId String? @map("revenue_adjustment_account_id") @db.Uuid
+  isActive     Boolean       @default(true) @map("is_active")
+  description  String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  invoiceLines    AccInvoiceLine[]
+  invoiceLineTaxes AccInvoiceLineTax[]
+
+  @@index([taxType])
+  @@index([isActive])
+  @@index([taxAccountId])
+  @@map("acc_taxes")
+}
+
+// القيود المحاسبية (Journal Entries)
+model AccJournalEntry {
+  id             String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  entryNumber    String               @unique @map("entry_number") // رقم القيد التسلسلي
+  occurredAt     DateTime             @map("occurred_at") // تاريخ الحدث الفعلي
+  postedAt       DateTime?            @map("posted_at") // تاريخ الترحيل
+  description    String
+  descriptionAr  String?              @map("description_ar")
+  status         AccJournalStatus     @default(DRAFT)
+  sourceModule   AccSourceModule      @map("source_module")
+  sourceEventId  String?              @unique @map("source_event_id") // Idempotency key
+  sourceEntityType String?            @map("source_entity_type") // مثال: "WalletTopUp"
+  sourceEntityId String?              @map("source_entity_id") @db.Uuid
+  currencyId     String               @map("currency_id") @db.Uuid
+  periodId       String               @map("period_id") @db.Uuid
+  createdById    String               @map("created_by_id") @db.Uuid
+  voidedAt       DateTime?            @map("voided_at")
+  voidedById     String?              @map("voided_by_id") @db.Uuid
+  voidReason     String?              @map("void_reason")
+  metadata       Json?                // بيانات إضافية
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  currency       AccCurrency          @relation(fields: [currencyId], references: [id])
+  period         AccPeriod            @relation(fields: [periodId], references: [id])
+  lines          AccJournalLine[]
+
+  @@index([occurredAt])
+  @@index([status])
+  @@index([sourceModule])
+  @@index([sourceEntityId])
+  @@index([periodId])
+  @@map("acc_journal_entries")
+}
+
+// سطور القيد المحاسبي
+model AccJournalLine {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  journalEntryId String           @map("journal_entry_id") @db.Uuid
+  accountId      String           @map("account_id") @db.Uuid
+  debit          Decimal          @default(0) @db.Decimal(18, 4)
+  credit         Decimal          @default(0) @db.Decimal(18, 4)
+  memo           String?
+  // Dimensions للتحليل المالي (governorateId, cityId, userId, businessId, agentProfileId, etc.)
+  dimensions     Json?            @db.JsonB
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  journalEntry   AccJournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account        AccAccount       @relation(fields: [accountId], references: [id])
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("acc_journal_lines")
+}
+
+// الفواتير
+model AccInvoice {
+  id             String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  invoiceNumber  String            @unique @map("invoice_number")
+  invoiceDate    DateTime          @map("invoice_date")
+  dueDate        DateTime?         @map("due_date")
+  invoiceType    AccInvoiceType    @map("invoice_type")
+  status         AccInvoiceStatus  @default(DRAFT)
+  currencyId     String            @map("currency_id") @db.Uuid
+  subtotal       Decimal           @db.Decimal(18, 4)
+  taxTotal       Decimal           @default(0) @map("tax_total") @db.Decimal(18, 4)
+  total          Decimal           @db.Decimal(18, 4)
+  paidAmount     Decimal           @default(0) @map("paid_amount") @db.Decimal(18, 4)
+  // بيانات العميل
+  customerId     String?           @map("customer_id") @db.Uuid // User ID
+  customerName   String            @map("customer_name")
+  customerEmail  String?           @map("customer_email")
+  customerPhone  String?           @map("customer_phone")
+  customerLanguage String          @default("AR") @map("customer_language") @db.VarChar(2)
+  billingAddress String?           @map("billing_address")
+  // بيانات النشاط (إن وجد)
+  businessId     String?           @map("business_id") @db.Uuid
+  governorateId  String?           @map("governorate_id") @db.Uuid
+  // مرجع القيد المحاسبي (إلزامي عند ISSUED)
+  journalEntryId String?           @map("journal_entry_id") @db.Uuid
+  // للقيود العكسية (Refunds/Credit Notes)
+  originalInvoiceId String?        @map("original_invoice_id") @db.Uuid
+  issuedAt       DateTime?         @map("issued_at")
+  paidAt         DateTime?         @map("paid_at")
+  cancelledAt    DateTime?         @map("cancelled_at")
+  cancelReason   String?           @map("cancel_reason")
+  createdById    String?           @map("created_by_id") @db.Uuid
+  notes          String?
+  notesAr        String?           @map("notes_ar")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  currency       AccCurrency       @relation(fields: [currencyId], references: [id])
+  lines          AccInvoiceLine[]
+  originalInvoice AccInvoice?      @relation("InvoiceRefund", fields: [originalInvoiceId], references: [id])
+  refundInvoices  AccInvoice[]     @relation("InvoiceRefund")
+
+  @@index([invoiceDate])
+  @@index([status])
+  @@index([customerId])
+  @@index([businessId])
+  @@index([governorateId])
+  @@index([originalInvoiceId])
+  @@map("acc_invoices")
+}
+
+// سطور الفاتورة
+model AccInvoiceLine {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  invoiceId   String   @map("invoice_id") @db.Uuid
+  lineNumber  Int      @default(1) @map("line_number")
+  description String
+  descriptionAr String? @map("description_ar")
+  quantity    Decimal  @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 4)
+  discountAmount Decimal @default(0) @map("discount_amount") @db.Decimal(18, 4)
+  subtotal    Decimal  @db.Decimal(18, 4)
+  // ضريبة واحدة (للتوافقية)
+  taxId       String?  @map("tax_id") @db.Uuid
+  taxAmount   Decimal  @default(0) @map("tax_amount") @db.Decimal(18, 4)
+  total       Decimal  @db.Decimal(18, 4)
+  // بيانات إضافية
+  metadata    Json?    @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  invoice     AccInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  tax         AccTax?    @relation(fields: [taxId], references: [id])
+  // دعم الضرائب المتعددة
+  taxes       AccInvoiceLineTax[]
+
+  @@index([invoiceId])
+  @@map("acc_invoice_lines")
+}
+
+// ضرائب متعددة على سطر الفاتورة (Many-to-Many)
+model AccInvoiceLineTax {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  invoiceLineId String   @map("invoice_line_id") @db.Uuid
+  taxId         String   @map("tax_id") @db.Uuid
+  taxableAmount Decimal  @map("taxable_amount") @db.Decimal(18, 4) // المبلغ الخاضع للضريبة
+  taxAmount     Decimal  @map("tax_amount") @db.Decimal(18, 4)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  invoiceLine   AccInvoiceLine @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
+  tax           AccTax         @relation(fields: [taxId], references: [id])
+
+  @@unique([invoiceLineId, taxId])
+  @@index([invoiceLineId])
+  @@index([taxId])
+  @@map("acc_invoice_line_taxes")
+}
+
+// سجل التدقيق المحاسبي
+model AccAuditLog {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  action       String   // CREATE, UPDATE, VOID, CLOSE_PERIOD, etc.
+  entityType   String   @map("entity_type") // JournalEntry, Invoice, Period, etc.
+  entityId     String   @map("entity_id") @db.Uuid
+  oldValues    Json?    @map("old_values")
+  newValues    Json?    @map("new_values")
+  reason       String?
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("acc_audit_logs")
+}
+
+// إعدادات طرق الشحن (Top-up Methods)
+model AccTopUpMethodConfig {
+  id            String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  method        TopUpMethod
+  nameAr        String       @map("name_ar")
+  nameEn        String       @map("name_en")
+  isActive      Boolean      @default(true) @map("is_active")
+  clearingAccountId String   @map("clearing_account_id") @db.Uuid // حساب المقاصة
+  feePercent    Decimal      @default(0) @map("fee_percent") @db.Decimal(8, 4)
+  feeFixed      Decimal      @default(0) @map("fee_fixed") @db.Decimal(18, 4)
+  minAmount     Decimal      @default(0) @map("min_amount") @db.Decimal(18, 4)
+  maxAmount     Decimal?     @map("max_amount") @db.Decimal(18, 4)
+  instructions  String?
+  instructionsAr String?     @map("instructions_ar")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  @@unique([method])
+  @@map("acc_topup_method_configs")
+}
+
+// ============================================================================
+// ACCOUNTING ENUMS
+// ============================================================================
+
+enum AccAccountType {
+  ASSET           // أصول
+  LIABILITY       // التزامات
+  EQUITY          // حقوق ملكية
+  REVENUE         // إيرادات
+  EXPENSE         // مصروفات
+}
+
+enum AccNormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum AccCurrencyMode {
+  MONO            // عملة واحدة
+  MULTI           // متعدد العملات
+}
+
+enum AccPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+enum AccTaxType {
+  VAT             // ضريبة القيمة المضافة
+  SALES_TAX       // ضريبة مبيعات
+  PLATFORM_TAX    // ضريبة المنصة الداخلية
+  GOVERNORATE_TAX // ضريبة المحافظة
+  SERVICE_TAX     // ضريبة خدمات
+}
+
+enum AccTaxScope {
+  ALL             // على كل شيء
+  SUBSCRIPTION    // على الاشتراكات فقط
+  ADS             // على الإعلانات فقط
+  WALLET_USAGE    // على استخدام المحفظة
+  SERVICES        // على الخدمات الإضافية
+}
+
+enum AccJournalStatus {
+  DRAFT           // مسودة
+  POSTED          // مرحّل
+  VOID            // ملغي
+}
+
+enum AccSourceModule {
+  WALLET          // المحفظة
+  COMMISSIONS     // العمولات
+  RENEWALS        // التجديدات
+  SUBSCRIPTIONS   // الاشتراكات
+  ADS             // الإعلانات
+  INVOICING       // الفوترة
+  FINANCIAL       // المالية العامة
+  MANUAL          // يدوي
+  SYSTEM          // النظام
+}
+
+enum AccInvoiceType {
+  SUBSCRIPTION    // فاتورة اشتراك
+  AD              // فاتورة إعلان
+  SERVICE         // فاتورة خدمة
+  TOP_UP          // إيصال شحن
+  CREDIT_NOTE     // إشعار دائن
+}
+
+enum AccInvoiceStatus {
+  DRAFT           // مسودة
+  ISSUED          // صادرة
+  PAID            // مدفوعة
+  PARTIALLY_PAID  // مدفوعة جزئياً
+  CANCELLED       // ملغاة
+  REFUNDED        // مستردة
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, use } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowRight, Calendar, Eye, Image as ImageIcon, Loader2, Save } from 'lucide-react';
 import { uploadApi } from '@/lib/api';
@@ -17,10 +17,9 @@ const positions = [
   { id: 'BUSINESS_PAGE', label: 'صفحة النشاط' },
 ];
 
-export default function EditAdPage() {
+export default function EditAdPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const id = typeof params?.id === 'string' ? params.id : '';
 
   const { data: ad, isLoading } = useAd(id);
   const updateAd = useUpdateAd();

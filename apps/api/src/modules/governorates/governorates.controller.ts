@@ -58,7 +58,7 @@ export class GovernoratesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إضافة محافظة' })
   @ApiResponse({ status: 201, description: 'تم الإضافة بنجاح' })
@@ -68,7 +68,7 @@ export class GovernoratesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث محافظة' })
   @ApiResponse({ status: 200, description: 'تم التحديث بنجاح' })
@@ -78,7 +78,7 @@ export class GovernoratesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'حذف محافظة' })
   @ApiResponse({ status: 200, description: 'تم الحذف بنجاح' })

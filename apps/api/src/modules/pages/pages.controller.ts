@@ -16,7 +16,7 @@ export class PagesController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'جميع الصفحات' })
   async findAll() {
@@ -32,7 +32,7 @@ export class PagesController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'عرض صفحة' })
   async findOne(@Param('id') id: string) {
@@ -48,7 +48,7 @@ export class PagesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إضافة صفحة' })
   async create(@Body() createPageDto: CreatePageDto) {
@@ -57,7 +57,7 @@ export class PagesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث صفحة' })
   async update(@Param('id') id: string, @Body() updatePageDto: UpdatePageDto) {
@@ -66,7 +66,7 @@ export class PagesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'حذف صفحة' })
   async remove(@Param('id') id: string) {

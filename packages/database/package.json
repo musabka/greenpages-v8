@@ -5,6 +5,9 @@
   "description": "Prisma Database Schema for Green Pages",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "prisma": {
+    "seed": "tsx prisma/seeds/index.ts"
+  },
   "scripts": {
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
@@ -19,11 +22,16 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "^5.22.0",
+    "jspdf": "^4.0.0",
+    "jspdf-autotable": "^5.0.7",
+    "papaparse": "^5.5.3",
+    "recharts": "^2.15.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/node": "^25.0.3",
+    "@types/papaparse": "^5.5.2",
     "@types/uuid": "^11.0.0",
     "prisma": "^5.22.0",
     "rimraf": "^6.0.1",

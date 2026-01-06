@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowRight, Edit, Loader2, MapPin, Phone, Image as ImageIcon } from 'lucide-react';
-import { useBusiness } from '@/lib/hooks';
+import { ArrowRight, Edit, Loader2, MapPin, Phone, Image as ImageIcon, Shield, Calendar } from 'lucide-react';
+import { useBusiness, useBusinessPackage } from '@/lib/hooks';
+import { OwnerManagementSection } from '@/components/business';
 import type { Business, BusinessContact, BusinessMedia, BusinessWorkingHours } from '@/lib/api';
 
 const statusLabels: Record<string, { label: string; className: string }> = {
@@ -31,6 +32,7 @@ export default function BusinessDetailsPage() {
   const id = String((params as any)?.id ?? '');
 
   const { data: business, isLoading } = useBusiness(id);
+  const { data: businessPackage } = useBusinessPackage(id);
 
   const primaryCategory = useMemo(() => {
     const categories = (business as any)?.categories as any[] | undefined;
@@ -144,6 +146,106 @@ export default function BusinessDetailsPage() {
                 </div>
 
                 <div className="space-y-6">
+                  {/* Owner Management */}
+                  {business?.id && (
+                    <OwnerManagementSection
+                      businessId={business.id}
+                      ownerStatus={(business as any).ownerStatus || 'unclaimed'}
+                      owner={(business as any).owner}
+                    />
+                  )}
+
+                  {/* Package Info */}
+                  {businessPackage && (
+                    <div className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-blue-900 font-bold mb-3">
+                        <Shield className="w-5 h-5" />
+                        معلومات الباقة
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-700 font-medium">الباقة:</span>
+                          <span className="text-blue-900 font-semibold">
+                            {businessPackage.package?.nameAr || '—'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-700 font-medium">الحالة:</span>
+                          {businessPackage.isActive ? (
+                            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                              نشطة
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-medium">
+                              منتهية
+                            </span>
+                          )}
+                        </div>
+                        {businessPackage.startDate && (
+                          <div className="pt-2 border-t border-blue-200">
+                            <div className="flex items-center gap-1 text-gray-700">
+                              <Calendar className="w-4 h-4" />
+                              <span className="font-medium">تاريخ البدء:</span>
+                            </div>
+                            <div className="text-blue-900 font-semibold mr-5">
+                              {new Date(businessPackage.startDate).toLocaleDateString('ar-SY', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                weekday: 'long'
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {businessPackage.endDate && (
+                          <div className="pt-2 border-t border-blue-200">
+                            <div className="flex items-center gap-1 text-gray-700">
+                              <Calendar className="w-4 h-4" />
+                              <span className="font-medium">تاريخ الانتهاء:</span>
+                            </div>
+                            <div className="text-blue-900 font-semibold mr-5">
+                              {new Date(businessPackage.endDate).toLocaleDateString('ar-SY', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                weekday: 'long'
+                              })}
+                            </div>
+                            {businessPackage.isActive && (() => {
+                              const now = new Date();
+                              const end = new Date(businessPackage.endDate);
+                              const daysLeft = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                              if (daysLeft >= 0) {
+                                return (
+                                  <div className={`mt-2 px-3 py-1.5 rounded-lg text-center font-medium ${
+                                    daysLeft <= 7 
+                                      ? 'bg-red-100 text-red-700' 
+                                      : daysLeft <= 30 
+                                        ? 'bg-yellow-100 text-yellow-700'
+                                        : 'bg-green-100 text-green-700'
+                                  }`}>
+                                    {daysLeft === 0 ? 'تنتهي اليوم!' : 
+                                     daysLeft === 1 ? 'تنتهي غداً' :
+                                     `متبقي ${daysLeft} ${daysLeft <= 10 ? 'أيام' : 'يوم'}`}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        )}
+                        {businessPackage.autoRenew && (
+                          <div className="pt-2 border-t border-blue-200">
+                            <div className="flex items-center gap-2 text-green-700 text-xs">
+                              <span>✓</span>
+                              <span className="font-medium">التجديد التلقائي مفعّل</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <h2 className="font-bold text-gray-900 mb-3">ساعات العمل</h2>
                     {workingHours.length ? (

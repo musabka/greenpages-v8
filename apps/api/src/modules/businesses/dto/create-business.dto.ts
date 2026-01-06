@@ -113,6 +113,16 @@ export class BusinessBranchDto {
   @IsOptional()
   @IsBoolean()
   isMain?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  sortOrder?: number;
 }
 
 // DTO للأشخاص

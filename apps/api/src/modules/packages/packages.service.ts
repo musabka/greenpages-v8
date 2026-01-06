@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Package, PackageStatus, FeatureKey, LimitKey, BusinessPackage } from '@greenpages/database';
+import { Package, PackageStatus, FeatureKey, LimitKey, BusinessPackage, UserRole, CommissionType, CommissionStatus } from '@greenpages/database';
 import { CreatePackageDto } from './dto/create-package.dto';
 import { UpdatePackageDto } from './dto/update-package.dto';
 import { AssignPackageDto } from './dto/assign-package.dto';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
+import { Decimal } from '@prisma/client/runtime/library';
 
 // Cache TTL in seconds (5 minutes)
 const PACKAGE_CACHE_TTL = 300;
@@ -107,17 +108,77 @@ export class PackagesService {
     await this.prisma.package.delete({ where: { id } });
   }
 
-  async assignPackage(data: AssignPackageDto): Promise<BusinessPackage> {
-    const { businessId, packageId, durationDays, autoRenew } = data;
+  async assignPackage(data: AssignPackageDto, userId?: string, userRole?: UserRole): Promise<BusinessPackage> {
+    const { businessId, packageId, durationDays, autoRenew, customExpiryDate } = data;
 
     const business = await this.prisma.business.findUnique({ where: { id: businessId } });
     if (!business) throw new NotFoundException('النشاط التجاري غير موجود');
 
+    // تحقق من الصلاحيات إذا كان المستخدم مدير محافظة
+    if (userRole === UserRole.GOVERNORATE_MANAGER && userId) {
+      const governorateIds = await this.prisma.governorateManager
+        .findMany({
+          where: { userId, isActive: true },
+          select: { governorateId: true },
+        })
+        .then(managers => managers.map(m => m.governorateId));
+
+      if (!governorateIds.includes(business.governorateId)) {
+        throw new ForbiddenException('ليس لديك صلاحية لتعيين باقة لنشاط في محافظة أخرى');
+      }
+    }
+
     const pkg = await this.findPackageById(packageId);
     
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setDate(startDate.getDate() + (durationDays || pkg.durationDays));
+    // تسجيل معلومات الباقة للتشخيص
+    this.logger.log(`📦 تعيين باقة: ${pkg.nameAr} (isDefault=${pkg.isDefault})`);
+    
+    let startDate = new Date();
+    let endDate: Date | null = null;
+    
+    // 1. الباقة الافتراضية دائمة لا نهاية لها
+    if (pkg.isDefault) {
+      endDate = null;
+      this.logger.log(`✅ باقة افتراضية - تاريخ النهاية = null (دائمة)`);
+    } 
+    // 2. إذا تم تحديد تاريخ انتهاء مخصص (تجاوز يدوي)
+    else if (customExpiryDate) {
+      endDate = new Date(customExpiryDate);
+      // التأكد من أن التاريخ في المستقبل
+      if (endDate <= startDate) {
+        throw new BadRequestException('تاريخ الانتهاء يجب أن يكون في المستقبل');
+      }
+      this.logger.log(`📅 تاريخ مخصص: ${endDate.toISOString()}`);
+    } 
+    // 3. الحساب التلقائي بناءً على المدة
+    else {
+      const daysToAdd = durationDays || pkg.durationDays;
+      this.logger.log(`⏱️ مدة الاشتراك: ${daysToAdd} يوم`);
+      
+      // التحقق من وجود اشتراك نشط حالي للتمديد
+      const currentBP = await this.prisma.businessPackage.findUnique({
+        where: { businessId }
+      });
+
+      // إذا كان هناك اشتراك نشط وغير منتهي، نقوم بالتمديد من تاريخ الانتهاء الحالي
+      if (currentBP && currentBP.isActive && currentBP.endDate && currentBP.endDate > new Date()) {
+        // إذا كانت نفس الباقة، نقوم بالتمديد
+        if (currentBP.packageId === packageId) {
+          startDate = currentBP.startDate; // نحافظ على تاريخ البدء الأصلي عند التمديد
+          endDate = new Date(currentBP.endDate);
+          endDate.setDate(endDate.getDate() + daysToAdd);
+        } else {
+          // إذا كانت باقة مختلفة، تبدأ من الآن (ترقية/تغيير)
+          startDate = new Date(); // إعادة ضبط تاريخ البدء لتاريخ اليوم
+          endDate = new Date();
+          endDate.setDate(endDate.getDate() + daysToAdd);
+        }
+      } else {
+        // اشتراك جديد أو منتهي
+        endDate = new Date();
+        endDate.setDate(endDate.getDate() + daysToAdd);
+      }
+    }
 
     const businessPackage = await this.prisma.$transaction(async (tx) => {
       // Deactivate current package if exists
@@ -162,6 +223,36 @@ export class PackagesService {
         },
       });
 
+      // تحديد نوع العمولة
+      let commissionType: 'NEW_SUBSCRIPTION' | 'RENEWAL' | 'UPGRADE' = 'NEW_SUBSCRIPTION';
+      
+      // التحقق من وجود اشتراك سابق لتحديد نوع العملية
+      const previousBP = await tx.businessPackage.findFirst({
+        where: { 
+          businessId, 
+          isActive: false,
+          id: { not: bp.id }
+        },
+        orderBy: { updatedAt: 'desc' }
+      });
+      
+      if (previousBP) {
+        if (previousBP.packageId === packageId) {
+          commissionType = 'RENEWAL';
+        } else {
+          commissionType = 'UPGRADE';
+        }
+      }
+
+      // إنشاء سجل العمولة للمندوب (فقط إذا كانت الباقة غير مجانية)
+      if (!pkg.isDefault && Number(pkg.price) > 0) {
+        await this.createAgentCommission(tx, {
+          businessId,
+          packagePrice: pkg.price,
+          commissionType,
+        });
+      }
+
       return bp;
     });
 
@@ -170,6 +261,115 @@ export class PackagesService {
     this.logger.log(`Package ${pkg.nameAr} assigned to business ${businessId}`);
 
     return businessPackage;
+  }
+
+  async getExpiringPackages(days: number = 30) {
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() + days);
+
+    return this.prisma.businessPackage.findMany({
+      where: {
+        isActive: true,
+        endDate: {
+          not: null,
+          gt: new Date(),
+          lte: thresholdDate,
+        },
+      },
+      include: {
+        business: {
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+            logo: true,
+          },
+        },
+        package: {
+          select: {
+            id: true,
+            nameAr: true,
+          },
+        },
+      },
+      orderBy: {
+        endDate: 'asc',
+      },
+    });
+  }
+
+  async getAllSubscriptions(filters?: {
+    search?: string;
+    status?: 'active' | 'expired' | 'expiring';
+    packageId?: string;
+    daysThreshold?: number;
+  }) {
+    const { search, status, packageId, daysThreshold = 30 } = filters || {};
+
+    const where: any = {};
+
+    // Search filter
+    if (search) {
+      where.business = {
+        OR: [
+          { nameAr: { contains: search, mode: 'insensitive' } },
+          { nameEn: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    // Package filter
+    if (packageId) {
+      where.packageId = packageId;
+    }
+
+    // Status filter
+    if (status === 'active') {
+      where.isActive = true;
+      where.OR = [
+        { endDate: null },
+        { endDate: { gt: new Date() } },
+      ];
+    } else if (status === 'expired') {
+      where.isActive = false;
+      where.endDate = { lte: new Date() };
+    } else if (status === 'expiring') {
+      const thresholdDate = new Date();
+      thresholdDate.setDate(thresholdDate.getDate() + daysThreshold);
+      where.isActive = true;
+      where.endDate = {
+        not: null,
+        gt: new Date(),
+        lte: thresholdDate,
+      };
+    }
+
+    return this.prisma.businessPackage.findMany({
+      where,
+      include: {
+        business: {
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+            logo: true,
+            status: true,
+          },
+        },
+        package: {
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+            price: true,
+          },
+        },
+      },
+      orderBy: [
+        { endDate: 'asc' },
+        { createdAt: 'desc' },
+      ],
+    });
   }
 
   /**
@@ -311,17 +511,25 @@ export class PackagesService {
 
   async canBusinessUseFeature(businessId: string, featureKey: FeatureKey): Promise<boolean> {
     const bp = await this.getBusinessPackage(businessId);
-    if (!bp || !bp.package) return false;
+    if (!bp) return false;
 
-    const feature = bp.package.features.find(f => f.featureKey === featureKey);
+    // Handle both BusinessPackage (bp.package) and direct Package (when using default)
+    const pkg = bp.package || bp;
+    if (!pkg || !pkg.features) return false;
+
+    const feature = pkg.features.find(f => f.featureKey === featureKey);
     return feature?.isEnabled ?? false;
   }
 
   async getBusinessLimit(businessId: string, limitKey: LimitKey): Promise<number> {
     const bp = await this.getBusinessPackage(businessId);
-    if (!bp || !bp.package) return 0;
+    if (!bp) return 0;
 
-    const limit = bp.package.limits.find(l => l.limitKey === limitKey);
+    // Handle both BusinessPackage (bp.package) and direct Package (when using default)
+    const pkg = bp.package || bp;
+    if (!pkg || !pkg.limits) return 0;
+
+    const limit = pkg.limits.find(l => l.limitKey === limitKey);
     return limit?.limitValue ?? 0;
   }
 
@@ -453,5 +661,82 @@ export class PackagesService {
     this.logger.log(`Admin override disabled for business ${businessId}`);
 
     return updated;
+  }
+
+  // =================== COMMISSION MANAGEMENT ===================
+
+  /**
+   * إنشاء سجل عمولة للمندوب عند تعيين باقة أو تجديد
+   */
+  private async createAgentCommission(
+    tx: any,
+    data: {
+      businessId: string;
+      packagePrice: Decimal;
+      commissionType: 'NEW_SUBSCRIPTION' | 'RENEWAL' | 'UPGRADE';
+    },
+  ) {
+    // جلب معلومات النشاط التجاري مع المندوب
+    const business = await tx.business.findUnique({
+      where: { id: data.businessId },
+      select: {
+        id: true,
+        agentId: true,
+        governorateId: true,
+      },
+    });
+
+    if (!business || !business.agentId) {
+      this.logger.log(`⚠️ لا يوجد مندوب مرتبط بالنشاط ${data.businessId} - لن يتم إنشاء عمولة`);
+      return null;
+    }
+
+    // جلب profile المندوب
+    const agentProfile = await tx.agentProfile.findUnique({
+      where: { userId: business.agentId },
+      select: {
+        id: true,
+        commissionRate: true,
+        user: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    if (!agentProfile) {
+      this.logger.log(`⚠️ لم يتم العثور على profile للمندوب ${business.agentId}`);
+      return null;
+    }
+
+    // حساب العمولة
+    const packagePrice = Number(data.packagePrice);
+    const commissionRate = Number(agentProfile.commissionRate);
+    const commissionAmount = (packagePrice * commissionRate) / 100;
+
+    // إنشاء سجل العمولة
+    const commission = await tx.agentCommission.create({
+      data: {
+        agentProfileId: agentProfile.id,
+        businessId: data.businessId,
+        subscriptionAmount: new Decimal(packagePrice),
+        commissionRate: new Decimal(commissionRate),
+        commissionAmount: new Decimal(commissionAmount),
+        type: data.commissionType,
+        status: 'PENDING',
+        notes: `عمولة ${data.commissionType === 'NEW_SUBSCRIPTION' ? 'اشتراك جديد' : data.commissionType === 'RENEWAL' ? 'تجديد' : 'ترقية'}`,
+      },
+    });
+
+    this.logger.log(`✅ تم إنشاء عمولة للمندوب ${agentProfile.user.firstName}: ${commissionAmount} ل.س (${commissionRate}% من ${packagePrice})`);
+
+    // تحديث إجمالي العمولات في profile المندوب
+    await tx.agentProfile.update({
+      where: { id: agentProfile.id },
+      data: {
+        totalCommissions: {
+          increment: new Decimal(commissionAmount),
+        },
+      },
+    });
+
+    return commission;
   }
 }

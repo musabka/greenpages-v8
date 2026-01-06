@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { WinstonModule } from 'nest-winston';
+import { ScheduleModule } from '@nestjs/schedule';
 import { winstonConfig } from './common/logger/winston.config';
 
 // Core Modules
@@ -31,6 +32,34 @@ import { AdminModule } from './modules/admin/admin.module';
 // Packages Module
 import { PackagesModule } from './modules/packages/packages.module';
 
+// Renewals Module
+import { RenewalsModule } from './modules/renewals/renewals.module';
+
+// Notifications Module
+import { NotificationsModule } from './modules/notifications/notifications.module';
+
+// Business Portal Module
+import { BusinessPortalModule } from './modules/business-portal/business-portal.module';
+
+// Role-based Portal Modules
+import { GovernorateManagerModule } from './modules/governorate-manager/governorate-manager.module';
+import { AgentPortalModule } from './modules/agent-portal/agent-portal.module';
+
+// Financial Module
+import { FinancialModule } from './modules/financial/financial.module';
+
+// Commissions Module
+import { CommissionsModule } from './modules/commissions/commissions.module';
+
+// Capabilities Module
+import { CapabilitiesModule } from './modules/capabilities/capabilities.module';
+
+// Wallet Module
+import { WalletModule } from './modules/wallet/wallet.module';
+
+// Accounting Module
+import { AccountingModule } from './modules/accounting/accounting.module';
+
 // Utility Modules
 import { UploadModule } from './modules/upload/upload.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
@@ -51,6 +80,9 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 
     // Logging
     WinstonModule.forRoot(winstonConfig),
+
+    // Scheduled Tasks
+    ScheduleModule.forRoot(),
 
     // Rate Limiting
     ThrottlerModule.forRoot([
@@ -82,6 +114,35 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 
     // Admin
     AdminModule,
+
+    // Packages & Renewals
+    PackagesModule,
+    RenewalsModule,
+
+    // Notifications
+    NotificationsModule,
+
+    // Business Portal
+    BusinessPortalModule,
+
+    // Role-based Portals
+    GovernorateManagerModule,
+    AgentPortalModule,
+
+    // Financial
+    FinancialModule,
+
+    // Commissions
+    CommissionsModule,
+
+    // Capabilities
+    CapabilitiesModule,
+
+    // Wallet
+    WalletModule,
+
+    // Accounting
+    AccountingModule,
 
     // Utility
     UploadModule,

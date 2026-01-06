@@ -17,18 +17,23 @@ import {
   Save,
   Users,
   Package,
+  Shield,
 } from 'lucide-react';
-import { uploadApi, type Category, type City, type District, type Governorate, type BusinessPerson, type BusinessProduct } from '@/lib/api';
+import { uploadApi, type Category, type City, type District, type Governorate, type BusinessPerson, type BusinessProduct, type BusinessBranch } from '@/lib/api';
 import {
   useCategories,
   useCities,
   useCreateBusiness,
   useDistricts,
   useGovernorates,
+  useAssignPackage,
 } from '@/lib/hooks';
 import { LocationPicker } from '@/components/map/location-picker';
 import { PersonsManager } from '@/components/business/persons-manager';
 import { ProductsManager } from '@/components/business/products-manager';
+import { BranchesManager } from '@/components/business/branches-manager';
+import { PackageSelector } from '@/components/packages/package-selector';
+import { OwnerLinkingSection } from '@/components/business/owner-linking';
 
 const DAYS: Array<{ label: string; dayOfWeek: 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' }> = [
   { label: 'الأحد', dayOfWeek: 'SUNDAY' },
@@ -42,7 +47,11 @@ const DAYS: Array<{ label: string; dayOfWeek: 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 
 
 export default function NewBusinessPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'location' | 'branches' | 'contact' | 'hours' | 'package' | 'team' | 'products' | 'media'>('basic');
+  
+  // Owner linking modal
+  const [createdBusinessId, setCreatedBusinessId] = useState<string | null>(null);
+  const [showOwnerLinkingModal, setShowOwnerLinkingModal] = useState(false);
 
   const createBusiness = useCreateBusiness();
 
@@ -90,6 +99,15 @@ export default function NewBusinessPage() {
   // Products & Services
   const [products, setProducts] = useState<BusinessProduct[]>([]);
 
+  // Branches
+  const [branches, setBranches] = useState<BusinessBranch[]>([]);
+
+  // Package
+  const [selectedPackageId, setSelectedPackageId] = useState('');
+  const [durationDays, setDurationDays] = useState<number>(0);
+  const [customExpiryDate, setCustomExpiryDate] = useState<string>('');
+  const assignPackage = useAssignPackage();
+
   const [logoUrl, setLogoUrl] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
   const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
@@ -103,12 +121,14 @@ export default function NewBusinessPage() {
   const tabs = [
     { id: 'basic', label: 'المعلومات الأساسية', icon: Building2 },
     { id: 'location', label: 'الموقع', icon: MapPin },
+    { id: 'branches', label: 'الفروع', icon: Building2 },
     { id: 'contact', label: 'التواصل', icon: Phone },
     { id: 'hours', label: 'ساعات العمل', icon: Clock },
+    { id: 'package', label: 'الباقة', icon: Shield },
     { id: 'team', label: 'فريق العمل', icon: Users },
     { id: 'products', label: 'المنتجات والخدمات', icon: Package },
     { id: 'media', label: 'الصور', icon: Image },
-  ];
+  ] as const;
 
   const categoriesTree = useMemo<Category[]>(() => {
     return Array.isArray(categoriesResponse)
@@ -119,10 +139,11 @@ export default function NewBusinessPage() {
   }, [categoriesResponse]);
 
   const categoryOptions = useMemo(() => {
-    const out: Array<{ id: string; nameAr: string }> = [];
+    const out: Array<{ id: string; nameAr: string; index: number }> = [];
+    let index = 0;
     const walk = (nodes: Category[], prefix: string) => {
       for (const node of nodes) {
-        out.push({ id: node.id, nameAr: `${prefix}${node.nameAr}` });
+        out.push({ id: node.id, nameAr: `${prefix}${node.nameAr}`, index: index++ });
         if (node.children?.length) walk(node.children, `${prefix}— `);
       }
     };
@@ -313,7 +334,7 @@ export default function NewBusinessPage() {
     if (!canSubmit) return;
 
     try {
-      await createBusiness.mutateAsync({
+      const result = await createBusiness.mutateAsync({
         nameAr: nameAr.trim(),
         nameEn: nameEn.trim() || undefined,
         shortDescAr: shortDescAr.trim() || undefined,
@@ -333,6 +354,35 @@ export default function NewBusinessPage() {
         categoryIds: categoryId ? [categoryId] : undefined,
         contacts: buildContacts(),
         workingHours: buildWorkingHours(),
+        
+        // Branches
+        branches: branches.filter((b) => b.nameAr?.trim() && b.cityId).length
+          ? branches.filter((b) => b.nameAr?.trim() && b.cityId).map((b, i) => ({ 
+              nameAr: b.nameAr,
+              nameEn: b.nameEn || undefined,
+              cityId: b.cityId,
+              districtId: b.districtId || undefined,
+              addressAr: b.addressAr || undefined,
+              addressEn: b.addressEn || undefined,
+              latitude:
+                typeof b.latitude === 'number'
+                  ? b.latitude
+                  : b.latitude != null && b.latitude !== ''
+                    ? Number(b.latitude)
+                    : undefined,
+              longitude:
+                typeof b.longitude === 'number'
+                  ? b.longitude
+                  : b.longitude != null && b.longitude !== ''
+                    ? Number(b.longitude)
+                    : undefined,
+              phone: b.phone || undefined,
+              // Main address is stored on the business itself
+              isMain: false,
+              isActive: b.isActive,
+              sortOrder: i,
+            }))
+          : undefined,
 
         // Team (persons)
         persons: persons.filter((p) => p.nameAr?.trim()).length
@@ -351,7 +401,23 @@ export default function NewBusinessPage() {
           : undefined,
       } as any);
 
-      router.push('/businesses');
+      // Assign package if selected
+      if (selectedPackageId && result?.data?.id) {
+        await assignPackage.mutateAsync({
+          businessId: result.data.id,
+          packageId: selectedPackageId,
+          durationDays: durationDays || undefined,
+          customExpiryDate: customExpiryDate || undefined,
+        });
+      }
+
+      // Show owner linking modal after successful creation
+      if (result?.data?.id) {
+        setCreatedBusinessId(result.data.id);
+        setShowOwnerLinkingModal(true);
+      } else {
+        router.push('/businesses');
+      }
     } catch {
       // handled in hook
     }
@@ -497,7 +563,7 @@ export default function NewBusinessPage() {
                   >
                     <option value="">اختر التصنيف</option>
                     {categoryOptions.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
+                      <option key={`${cat.id}-${cat.index}`} value={cat.id}>
                         {cat.nameAr}
                       </option>
                     ))}
@@ -701,6 +767,26 @@ export default function NewBusinessPage() {
             </div>
           )}
 
+          {activeTab === 'branches' && (
+            <div className="card">
+              <div className="card-header">
+                <h2 className="font-bold text-gray-900">الفروع</h2>
+                <p className="text-sm text-gray-500">أضف فروع النشاط التجاري</p>
+              </div>
+              <div className="card-body">
+                <BranchesManager
+                  branches={branches}
+                  onChange={setBranches}
+                  governorates={governorates}
+                  cities={cities}
+                  districts={districts}
+                  selectedCity={selectedCity}
+                  onCityChange={(cityId) => setSelectedCity(cityId)}
+                />
+              </div>
+            </div>
+          )}
+
           {activeTab === 'contact' && (
             <div className="card">
               <div className="card-header">
@@ -890,6 +976,26 @@ export default function NewBusinessPage() {
             </div>
           )}
 
+          {/* Package Tab */}
+          {activeTab === 'package' && (
+            <div className="card">
+              <div className="card-header">
+                <h2 className="font-bold text-gray-900">الباقة</h2>
+                <p className="text-sm text-gray-500">اختر الباقة المناسبة لهذا النشاط التجاري</p>
+              </div>
+              <div className="card-body">
+                <PackageSelector
+                  selectedPackageId={selectedPackageId}
+                  onPackageSelect={setSelectedPackageId}
+                  durationDays={durationDays}
+                  onDurationDaysChange={setDurationDays}
+                  customExpiryDate={customExpiryDate}
+                  onCustomExpiryDateChange={setCustomExpiryDate}
+                />
+              </div>
+            </div>
+          )}
+
           {activeTab === 'media' && (
             <div className="card">
               <div className="card-header">
@@ -1018,6 +1124,52 @@ export default function NewBusinessPage() {
           )}
         </div>
       </div>
+
+      {/* Owner Linking Modal */}
+      {showOwnerLinkingModal && createdBusinessId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">ربط مالك النشاط التجاري</h2>
+              <button
+                onClick={() => {
+                  setShowOwnerLinkingModal(false);
+                  router.push('/businesses');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <OwnerLinkingSection
+                businessId={createdBusinessId}
+                onOwnerLinked={() => {
+                  setShowOwnerLinkingModal(false);
+                  router.push('/businesses');
+                }}
+                onInviteSent={() => {
+                  setShowOwnerLinkingModal(false);
+                  router.push('/businesses');
+                }}
+              />
+              
+              <div className="mt-6 pt-6 border-t flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowOwnerLinkingModal(false);
+                    router.push('/businesses');
+                  }}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                >
+                  تخطي - سأقوم بالربط لاحقاً
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

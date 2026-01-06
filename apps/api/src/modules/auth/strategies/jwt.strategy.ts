@@ -29,7 +29,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('الحساب غير مفعل');
     }
 
+    // TOKEN INVALIDATION CHECK: Verify tokenVersion matches
+    if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
+      throw new UnauthorizedException('تم تغيير صلاحيات الحساب، يرجى تسجيل الدخول مجدداً');
+    }
+
     const { password, ...result } = user;
-    return result;
+    
+    // Merge context from payload
+    return {
+      ...result,
+      managedGovernorateIds: payload.managedGovernorateIds,
+      agentProfileId: payload.agentProfileId,
+      businessId: payload.businessId,
+    };
   }
 }

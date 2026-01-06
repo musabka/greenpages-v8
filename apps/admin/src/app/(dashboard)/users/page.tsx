@@ -16,16 +16,20 @@ import {
   Phone,
   Loader2,
   MapPin,
+  Building2,
+  Briefcase,
+  Map,
 } from 'lucide-react';
 import { useUsers, useDeleteUser } from '@/lib/hooks';
 import toast from 'react-hot-toast';
 
 const roleConfig = {
-  SUPER_ADMIN: { label: 'مدير عام', class: 'badge-danger', icon: Shield },
-  ADMIN: { label: 'مدير', class: 'badge-primary', icon: Shield },
-  MODERATOR: { label: 'مشرف', class: 'badge-warning', icon: UserCheck },
-  AGENT: { label: 'وكيل', class: 'badge-success', icon: Users },
-  USER: { label: 'مستخدم', class: 'badge-gray', icon: Users },
+  ADMIN: { label: 'المدير', class: 'badge-danger', icon: Shield, description: 'كامل الصلاحيات' },
+  SUPERVISOR: { label: 'المشرف', class: 'badge-warning', icon: UserCheck, description: 'كل شيء ما عدا الإعدادات التقنية' },
+  GOVERNORATE_MANAGER: { label: 'مدير محافظة', class: 'badge-primary', icon: Map, description: 'يدير محافظات محددة' },
+  AGENT: { label: 'المندوب', class: 'badge-success', icon: Briefcase, description: 'جمع البيانات الميدانية' },
+  BUSINESS: { label: 'مالك نشاط', class: 'badge-info', icon: Building2, description: 'يدير نشاطه التجاري' },
+  USER: { label: 'مستخدم', class: 'badge-gray', icon: Users, description: 'المستخدم العادي' },
 };
 
 export default function UsersPage() {
@@ -100,7 +104,7 @@ export default function UsersPage() {
             </div>
             <div>
               <p className="stat-card-value">
-                {users.filter((u: any) => ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(u.role)).length}
+                {users.filter((u: any) => ['ADMIN', 'SUPERVISOR'].includes(u.role)).length}
               </p>
               <p className="stat-card-label">مشرفين</p>
             </div>
@@ -141,10 +145,11 @@ export default function UsersPage() {
               className="select w-40"
             >
               <option value="">كل الأدوار</option>
-              <option value="SUPER_ADMIN">مدير عام</option>
               <option value="ADMIN">مدير</option>
-              <option value="MODERATOR">مشرف</option>
-              <option value="AGENT">وكيل</option>
+              <option value="SUPERVISOR">مشرف</option>
+              <option value="GOVERNORATE_MANAGER">مدير محافظة</option>
+              <option value="AGENT">مندوب</option>
+              <option value="BUSINESS">مالك نشاط</option>
               <option value="USER">مستخدم</option>
             </select>
           </div>

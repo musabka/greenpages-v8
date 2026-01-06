@@ -91,6 +91,112 @@ export class AdminService {
     });
   }
 
+  async getPendingBusinessesCount() {
+    const count = await this.prisma.business.count({
+      where: { status: BusinessStatus.PENDING },
+    });
+
+    return { count };
+  }
+
+  async getPendingReviewsCount() {
+    const count = await this.prisma.review.count({
+      where: { status: ReviewStatus.PENDING },
+    });
+
+    return { count };
+  }
+
+  async getChartData(period: 'day' | 'week' | 'month' = 'week') {
+    if (period === 'day') {
+      return this.getHourlyChartData(24);
+    }
+
+    if (period === 'month') {
+      return this.getWeeklyChartData(4);
+    }
+
+    // Default: last 7 days
+    return this.getDailyChartData(7);
+  }
+
+  private async getHourlyChartData(hours: number) {
+    const now = new Date();
+    const currentHour = new Date(now);
+    currentHour.setMinutes(0, 0, 0);
+
+    const data = [] as { name: string; businesses: number; users: number; reviews: number }[];
+
+    for (let i = hours - 1; i >= 0; i--) {
+      const start = new Date(currentHour);
+      start.setHours(start.getHours() - i);
+      const end = new Date(start);
+      end.setHours(end.getHours() + 1);
+
+      const [businesses, users, reviews] = await Promise.all([
+        this.prisma.business.count({ where: { createdAt: { gte: start, lt: end } } }),
+        this.prisma.user.count({ where: { createdAt: { gte: start, lt: end } } }),
+        this.prisma.review.count({ where: { createdAt: { gte: start, lt: end } } }),
+      ]);
+
+      const name = start.toLocaleTimeString('ar-SY', { hour: '2-digit' });
+      data.push({ name, businesses, users, reviews });
+    }
+
+    return data;
+  }
+
+  private async getDailyChartData(days: number) {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const data = [] as { name: string; businesses: number; users: number; reviews: number }[];
+
+    for (let i = days - 1; i >= 0; i--) {
+      const start = new Date(now);
+      start.setDate(start.getDate() - i);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+
+      const [businesses, users, reviews] = await Promise.all([
+        this.prisma.business.count({ where: { createdAt: { gte: start, lt: end } } }),
+        this.prisma.user.count({ where: { createdAt: { gte: start, lt: end } } }),
+        this.prisma.review.count({ where: { createdAt: { gte: start, lt: end } } }),
+      ]);
+
+      const name = dayNames[start.getDay()];
+      data.push({ name, businesses, users, reviews });
+    }
+
+    return data;
+  }
+
+  private async getWeeklyChartData(weeks: number) {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const data = [] as { name: string; businesses: number; users: number; reviews: number }[];
+
+    for (let i = weeks - 1; i >= 0; i--) {
+      const start = new Date(now);
+      start.setDate(start.getDate() - i * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+
+      const [businesses, users, reviews] = await Promise.all([
+        this.prisma.business.count({ where: { createdAt: { gte: start, lt: end } } }),
+        this.prisma.user.count({ where: { createdAt: { gte: start, lt: end } } }),
+        this.prisma.review.count({ where: { createdAt: { gte: start, lt: end } } }),
+      ]);
+
+      const weekNumber = weeks - i;
+      data.push({ name: `الأسبوع ${weekNumber}`, businesses, users, reviews });
+    }
+
+    return data;
+  }
+
   async getRecentActivity(limit = 10) {
     // Get recent businesses, reviews, and users
     const [recentBusinesses, recentReviews, recentUsers] = await Promise.all([

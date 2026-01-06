@@ -25,6 +25,8 @@ import { BusinessCard } from '@/components/business/business-card';
 import { ReviewsSection } from '@/components/reviews/reviews-section';
 import { BusinessRating } from '@/components/business/business-rating';
 import { LocationMap } from '@/components/map/location-map';
+import { hasFeature } from '@/lib/package-features';
+import type { BusinessPackage } from '@/lib/package-features';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 const API_URL = `${API_BASE}/api/v1`;
@@ -38,6 +40,27 @@ async function getBusiness(slug: string) {
     return await res.json();
   } catch (error) {
     console.error('Failed to fetch business:', error);
+    return null;
+  }
+}
+
+async function getBusinessPackage(businessId: string) {
+  try {
+    const res = await fetch(`${API_URL}/packages/business/${businessId}`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return null;
+    
+    const text = await res.text();
+    if (!text) return null;
+    
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  } catch (error) {
+    console.error('Failed to fetch business package:', error);
     return null;
   }
 }
@@ -105,6 +128,8 @@ export default async function BusinessDetailPage({ params }: Props) {
   const { slug } = await params;
   const business = await getBusiness(slug);
   if (!business) notFound();
+
+  const businessPackage = await getBusinessPackage(business.id);
 
   const relatedBusinesses = await (business.categoryId ? getRelatedBusinesses(business.categoryId, business.id) : []);
 
@@ -214,14 +239,20 @@ export default async function BusinessDetailPage({ params }: Props) {
 
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">نبذة عن النشاط</h2>
-              <div className="prose prose-gray max-w-none">
-                {business.descriptionAr ? (
-                  business.descriptionAr.split('\n').map((p: string, i: number) => <p key={i} className="text-gray-600 leading-relaxed mb-3">{p}</p>)
-                ) : (
-                  <p className="text-gray-400">لا يوجد وصف متاح</p>
-                )}
-              </div>
-              {tags.length > 0 && (
+              {hasFeature(businessPackage, 'SHOW_DESCRIPTION') ? (
+                <div className="prose prose-gray max-w-none">
+                  {business.descriptionAr ? (
+                    business.descriptionAr.split('\n').map((p: string, i: number) => <p key={i} className="text-gray-600 leading-relaxed mb-3">{p}</p>)
+                  ) : (
+                    <p className="text-gray-400">لا يوجد وصف متاح</p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-6 bg-gray-50 rounded-lg text-center">
+                  <p className="text-gray-500">الوصف التفصيلي متاح في الباقات المدفوعة</p>
+                </div>
+              )}
+              {tags.length > 0 && hasFeature(businessPackage, 'SHOW_DESCRIPTION') && (
                 <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-gray-100">
                   {tags.map((tag: string) => (
                     <Link key={tag} href={`/search?q=${tag}`} className="px-3 py-1 bg-gray-100 hover:bg-primary-100 text-gray-600 hover:text-primary-600 rounded-lg text-sm transition-colors">#{tag}</Link>
@@ -230,7 +261,7 @@ export default async function BusinessDetailPage({ params }: Props) {
               )}
             </div>
 
-            {media.length > 0 && (
+            {media.length > 0 && hasFeature(businessPackage, 'SHOW_GALLERY') && (
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">معرض الصور</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -248,14 +279,14 @@ export default async function BusinessDetailPage({ params }: Props) {
             )}
 
             {/* قسم فريق العمل */}
-            {persons.length > 0 && (
+            {persons.length > 0 && hasFeature(businessPackage, 'SHOW_TEAM') && (
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Users className="w-6 h-6 text-primary-500" />
                   <h2 className="text-xl font-bold text-gray-900">يعمل هنا</h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {persons.map((person: any) => (
+                  {persons.filter((p: any) => p.isActive !== false).map((person: any) => (
                     <div key={person.id} className="flex items-start gap-4 p-4 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors">
                       <div className="shrink-0">
                         {person.photo ? (
@@ -308,7 +339,7 @@ export default async function BusinessDetailPage({ params }: Props) {
             )}
 
             {/* قسم المنتجات والخدمات */}
-            {products.length > 0 && (
+            {products.length > 0 && hasFeature(businessPackage, 'SHOW_PRODUCTS') && (
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Package className="w-6 h-6 text-primary-500" />
@@ -318,7 +349,7 @@ export default async function BusinessDetailPage({ params }: Props) {
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {products.map((product: any) => (
+                  {products.filter((p: any) => p.isActive !== false).map((product: any) => (
                     <div key={product.id} className="rounded-xl bg-gray-50 overflow-hidden hover:shadow-md transition-shadow">
                       {product.image ? (
                         <div className="aspect-video relative">
@@ -381,24 +412,42 @@ export default async function BusinessDetailPage({ params }: Props) {
               </div>
             )}
 
-            {branches.length > 1 && (
+            {branches.filter((b: any) => b.isActive !== false).length > 0 && hasFeature(businessPackage, 'SHOW_BRANCHES') && (
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">الفروع</h2>
                 <div className="grid md:grid-cols-2 gap-4">
-                  {branches.map((branch: any) => (
-                    <div key={branch.id} className={`p-4 rounded-xl border-2 ${branch.isMainBranch ? 'border-primary-200 bg-primary-50' : 'border-gray-200'}`}>
-                      <div className="flex items-start justify-between">
+                  {branches.filter((b: any) => b.isActive !== false).map((branch: any) => (
+                    <div key={branch.id} className="p-4 rounded-xl border-2 border-gray-200">
+                      <div className="space-y-3">
                         <div>
-                          <h3 className="font-semibold text-gray-900">
+                          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                             {branch.nameAr}
-                            {branch.isMainBranch && <span className="mr-2 text-xs bg-primary-500 text-white px-2 py-0.5 rounded">رئيسي</span>}
                           </h3>
                           <p className="text-gray-600 text-sm mt-1">{branch.addressAr}</p>
-                          {branch.phone && <a href={`tel:${branch.phone}`} className="text-primary-600 text-sm mt-2 inline-block" dir="ltr">{branch.phone}</a>}
                         </div>
-                        {branch.latitude && branch.longitude && (
-                          <a href={`https://www.google.com/maps?q=${branch.latitude},${branch.longitude}`} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition-colors">
-                            <Navigation className="w-5 h-5" />
+                        
+                        <div className="flex items-center gap-3">
+                          {branch.phone && (
+                            <a 
+                              href={`tel:${branch.phone}`} 
+                              className="flex items-center gap-1 text-primary-600 text-sm hover:text-primary-700 transition-colors" 
+                              dir="ltr"
+                            >
+                              <Phone className="w-4 h-4" />
+                              {branch.phone}
+                            </a>
+                          )}
+                        </div>
+
+                        {branch.latitude != null && branch.longitude != null && (
+                          <a
+                            href={`https://www.google.com/maps?q=${branch.latitude},${branch.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors text-sm font-medium"
+                          >
+                            <Navigation className="w-4 h-4" />
+                            عرض على الخريطة
                           </a>
                         )}
                       </div>
@@ -408,25 +457,24 @@ export default async function BusinessDetailPage({ params }: Props) {
               </div>
             )}
 
-            <ReviewsSection
-              businessId={business.id}
-              businessSlug={business.slug}
-              businessName={business.nameAr}
-            />
+            {hasFeature(businessPackage, 'SHOW_REVIEWS') && (
+              <ReviewsSection
+                businessId={business.id}
+                businessSlug={business.slug}
+                businessName={business.nameAr}
+              />
+            )}
           </div>
 
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-24">
               <h3 className="text-lg font-bold text-gray-900 mb-4">معلومات التواصل</h3>
-              {phoneContacts.length > 0 && (
+              
+              {hasFeature(businessPackage, 'SHOW_PHONE') && phoneContacts.filter((c: any) => c.type !== 'WHATSAPP').length > 0 && (
                 <div className="space-y-3">
-                  {phoneContacts.map((contact: any) => (
-                    <a key={contact.id} href={contact.type === 'WHATSAPP' ? `https://wa.me/${contact.value.replace(/\D/g, '')}` : `tel:${contact.value}`} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors group">
-                      {contact.type === 'WHATSAPP' ? (
-                        <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center"><FaWhatsapp className="w-5 h-5 text-white" /></div>
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg bg-primary-500 flex items-center justify-center"><Phone className="w-5 h-5 text-white" /></div>
-                      )}
+                  {phoneContacts.filter((c: any) => c.type !== 'WHATSAPP').map((contact: any) => (
+                    <a key={contact.id} href={`tel:${contact.value}`} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors group">
+                      <div className="w-10 h-10 rounded-lg bg-primary-500 flex items-center justify-center"><Phone className="w-5 h-5 text-white" /></div>
                       <div className="flex-1">
                         <span className="text-sm text-gray-500">{contact.label || contact.type}</span>
                         <p className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors" dir="ltr">{contact.value}</p>
@@ -436,20 +484,54 @@ export default async function BusinessDetailPage({ params }: Props) {
                 </div>
               )}
 
-              {contacts.filter((c: any) => ['EMAIL', 'WEBSITE'].includes(c.type)).map((contact: any) => (
-                <a key={contact.id} href={contact.type === 'EMAIL' ? `mailto:${contact.value}` : contact.value} target={contact.type === 'WEBSITE' ? '_blank' : undefined} rel={contact.type === 'WEBSITE' ? 'noopener noreferrer' : undefined} className="flex items-center gap-3 p-3 mt-3 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors group">
-                  <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center">
-                    {contact.type === 'EMAIL' ? <Mail className="w-5 h-5 text-gray-600" /> : <Globe className="w-5 h-5 text-gray-600" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-gray-500">{contact.label || contact.type}</span>
-                    <p className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors truncate">{contact.type === 'WEBSITE' ? contact.value.replace(/^https?:\/\//, '') : contact.value}</p>
-                  </div>
-                  {contact.type === 'WEBSITE' && <ExternalLink className="w-4 h-4 text-gray-400" />}
-                </a>
-              ))}
+              {hasFeature(businessPackage, 'SHOW_WHATSAPP') && phoneContacts.filter((c: any) => c.type === 'WHATSAPP').length > 0 && (
+                <div className="space-y-3">
+                  {phoneContacts.filter((c: any) => c.type === 'WHATSAPP').map((contact: any) => (
+                    <a key={contact.id} href={`https://wa.me/${contact.value.replace(/\D/g, '')}`} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors group">
+                      <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center"><FaWhatsapp className="w-5 h-5 text-white" /></div>
+                      <div className="flex-1">
+                        <span className="text-sm text-gray-500">{contact.label || 'واتساب'}</span>
+                        <p className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors" dir="ltr">{contact.value}</p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
 
-              {socialContacts.length > 0 && (
+              {hasFeature(businessPackage, 'SHOW_EMAIL') && contacts.filter((c: any) => c.type === 'EMAIL').length > 0 && (
+                <div className="space-y-3">
+                  {contacts.filter((c: any) => c.type === 'EMAIL').map((contact: any) => (
+                    <a key={contact.id} href={`mailto:${contact.value}`} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors group">
+                      <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center">
+                        <Mail className="w-5 h-5 text-gray-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-gray-500">{contact.label || 'البريد الإلكتروني'}</span>
+                        <p className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors truncate">{contact.value}</p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {hasFeature(businessPackage, 'SHOW_WEBSITE') && contacts.filter((c: any) => c.type === 'WEBSITE').length > 0 && (
+                <div className="space-y-3">
+                  {contacts.filter((c: any) => c.type === 'WEBSITE').map((contact: any) => (
+                    <a key={contact.id} href={contact.value} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors group">
+                      <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center">
+                        <Globe className="w-5 h-5 text-gray-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-gray-500">{contact.label || 'الموقع الإلكتروني'}</span>
+                        <p className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors truncate">{contact.value.replace(/^https?:\/\//, '')}</p>
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-gray-400" />
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {hasFeature(businessPackage, 'SHOW_SOCIAL_LINKS') && socialContacts.length > 0 && (
                 <div className="mt-6 pt-6 border-t border-gray-100">
                   <h4 className="text-sm font-medium text-gray-500 mb-3">تابعنا على</h4>
                   <div className="flex flex-wrap gap-2">
@@ -465,7 +547,7 @@ export default async function BusinessDetailPage({ params }: Props) {
                 </div>
               )}
 
-              {workingHours.length > 0 && (
+              {workingHours.length > 0 && hasFeature(businessPackage, 'SHOW_WORKING_HOURS') && (
                 <div className="mt-6 pt-6 border-t border-gray-100">
                   <div className="flex items-center gap-2 mb-3"><Clock className="w-5 h-5 text-gray-400" /><h4 className="font-medium text-gray-900">أوقات العمل</h4></div>
                   <div className="space-y-2">
@@ -493,22 +575,26 @@ export default async function BusinessDetailPage({ params }: Props) {
                 </div>
               )}
 
-              {(business.addressAr || business.city) && (
+              {(business.addressAr || business.city) && hasFeature(businessPackage, 'SHOW_ADDRESS') && (
                 <div className="mt-6 pt-6 border-t border-gray-100">
                   <div className="flex items-center gap-2 mb-3"><MapPin className="w-5 h-5 text-gray-400" /><h4 className="font-medium text-gray-900">العنوان</h4></div>
                   <p className="text-gray-600 text-sm mb-3">
                     {business.addressAr}{business.addressAr && <br />}
                     {business.district?.nameAr && `${business.district.nameAr}، `}{business.city?.nameAr || business.governorate?.nameAr}
                   </p>
-                  {business.latitude && business.longitude && (
-                    <LocationMap
-                      latitude={business.latitude}
-                      longitude={business.longitude}
-                      name={business.nameAr}
-                      address={`${business.addressAr || ''} ${business.city?.nameAr || business.governorate?.nameAr || ''}`.trim()}
-                      height="300px"
-                    />
-                  )}
+                </div>
+              )}
+
+              {business.latitude && business.longitude && hasFeature(businessPackage, 'SHOW_MAP') && (
+                <div className="mt-6 pt-6 border-t border-gray-100">
+                  <div className="flex items-center gap-2 mb-3"><Navigation className="w-5 h-5 text-gray-400" /><h4 className="font-medium text-gray-900">الموقع على الخريطة</h4></div>
+                  <LocationMap
+                    latitude={business.latitude}
+                    longitude={business.longitude}
+                    name={business.nameAr}
+                    address={`${business.addressAr || ''} ${business.city?.nameAr || business.governorate?.nameAr || ''}`.trim()}
+                    height="300px"
+                  />
                 </div>
               )}
             </div>

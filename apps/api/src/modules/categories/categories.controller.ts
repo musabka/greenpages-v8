@@ -59,7 +59,7 @@ export class CategoriesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إضافة تصنيف' })
   async create(@Body() createCategoryDto: CreateCategoryDto) {
@@ -68,7 +68,7 @@ export class CategoriesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث تصنيف' })
   async update(@Param('id') id: string, @Body() updateCategoryDto: UpdateCategoryDto) {
@@ -77,7 +77,7 @@ export class CategoriesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'حذف تصنيف' })
   async remove(@Param('id') id: string) {

@@ -22,13 +22,13 @@ export class PackageGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    // Super Admins bypass package checks
-    if (user?.role === UserRole.SUPER_ADMIN) {
+    // Admins bypass package checks
+    if (user?.role === UserRole.ADMIN) {
       return true;
     }
 
-    // This guard expects a businessId in the request (either in params, body, or from the user if they are a BUSINESS owner)
-    const businessId = request.params.businessId || request.body.businessId || (user?.role === UserRole.BUSINESS ? await this.getBusinessIdForUser(user.id) : null);
+    // Extract businessId from request or use capabilities to find user's businesses
+    const businessId = request.params.businessId || request.body.businessId || (user?.hasBusinessAccess ? await this.getBusinessIdForUser(user.id) : null);
 
     if (!businessId) {
       // If we can't identify the business, we might allow it if it's not a restricted action, 

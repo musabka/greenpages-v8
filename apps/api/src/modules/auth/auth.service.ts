@@ -7,9 +7,8 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { UserRole, UserStatus, PrismaClient } from '@greenpages/database';
-
-const prisma = new PrismaClient();
+import { UserRole, UserStatus } from '@greenpages/database';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
@@ -17,6 +16,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -123,7 +123,42 @@ export class AuthService {
   }
 
   private async generateTokens(user: any) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload: any = { 
+      sub: user.id, 
+      email: user.email, 
+      role: user.role,
+      tokenVersion: user.tokenVersion || 0  // For token invalidation
+    };
+
+    // Lightweight capability flag (instead of full array to avoid JWT bloat)
+    // Full capabilities are fetched via GET /capabilities/my-capabilities
+    const hasCapabilities = await this.prisma.userBusinessCapability.count({
+      where: { 
+        userId: user.id, 
+        status: 'ACTIVE' as any, // CapabilityStatus.ACTIVE
+      },
+    });
+
+    if (hasCapabilities > 0) {
+      payload.hasBusinessAccess = true;
+    }
+
+    // Add context based on role
+    if (user.role === UserRole.GOVERNORATE_MANAGER) {
+      const manager = await this.prisma.governorateManager.findMany({
+        where: { userId: user.id, isActive: true },
+        select: { governorateId: true },
+      });
+      payload.managedGovernorateIds = manager.map(m => m.governorateId);
+    } else if (user.role === UserRole.AGENT) {
+      const agent = await this.prisma.agentProfile.findUnique({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+      if (agent) {
+        payload.agentProfileId = agent.id;
+      }
+    }
 
     const accessToken = this.jwtService.sign(payload);
 
@@ -177,7 +212,7 @@ export class AuthService {
       updateData.district = { disconnect: true };
     }
 
-    const updatedUser = await prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: updateData,
       include: {
@@ -194,7 +229,7 @@ export class AuthService {
   }
 
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
-    const user = await prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { password: true },
     });
@@ -216,7 +251,7 @@ export class AuthService {
     // تشفير كلمة المرور الجديدة
     const hashedNewPassword = await bcrypt.hash(changePasswordDto.newPassword, 12);
 
-    await prisma.user.update({
+    await this.prisma.user.update({
       where: { id: userId },
       data: { password: hashedNewPassword },
     });
@@ -228,7 +263,7 @@ export class AuthService {
 
   async markPhoneVerified(userId: string, phone: string) {
     // التحقق من أن الرقم يخص المستخدم أو تحديثه
-    const user = await prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { phone: true },
     });
@@ -243,7 +278,7 @@ export class AuthService {
       updateData.phone = phone;
     }
 
-    return prisma.user.update({
+    return this.prisma.user.update({
       where: { id: userId },
       data: updateData,
     });

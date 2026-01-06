@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, use } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -62,10 +62,9 @@ function collectDescendantIds(category: any): Set<string> {
   return ids;
 }
 
-export default function EditCategoryPage() {
+export default function EditCategoryPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: categoryId } = use(params);
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const categoryId = typeof params?.id === 'string' ? params.id : '';
 
   const { data: category, isLoading: isCategoryLoading, isError } = useCategory(categoryId);
   const { data: categoriesTree, isLoading: isCategoriesLoading } = useCategories({ includeChildren: true });

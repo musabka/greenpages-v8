@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, use } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowRight, Loader2, Save, Users, Package } from 'lucide-react';
-import { uploadApi, type Category, type City, type DayOfWeek, type District, type Governorate, type BusinessPerson, type BusinessProduct } from '@/lib/api';
+import { ArrowRight, Loader2, Save, Users, Package, Shield, UserCheck } from 'lucide-react';
+import { uploadApi, type Category, type City, type DayOfWeek, type District, type Governorate, type BusinessPerson, type BusinessProduct, type BusinessBranch } from '@/lib/api';
 import {
   useBusiness,
   useCategories,
@@ -12,10 +12,17 @@ import {
   useDistricts,
   useGovernorates,
   useUpdateBusiness,
+  useBusinessPackage,
+  useAssignPackage,
+  usePackages,
 } from '@/lib/hooks';
 import { LocationPicker } from '@/components/map/location-picker';
 import { PersonsManager } from '@/components/business/persons-manager';
 import { ProductsManager } from '@/components/business/products-manager';
+import { BranchesManager } from '@/components/business/branches-manager';
+import { PackageSelector } from '@/components/packages/package-selector';
+import { OwnerManagementSection } from '@/components/business';
+import { OwnershipAuditList } from '@/components/business/ownership-audit-list';
 
 type WorkingHoursForm = {
   day: DayOfWeek;
@@ -38,10 +45,9 @@ function emptyWorkingHours(): WorkingHoursForm[] {
   return days.map((d) => ({ day: d.key, isClosed: false, openTime: '09:00', closeTime: '17:00' }));
 }
 
-export default function EditBusinessPage() {
-  const params = useParams();
+export default function EditBusinessPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
-  const id = String((params as any)?.id ?? '');
 
   const { data: business, isLoading: isBusinessLoading } = useBusiness(id);
   const { data: categoriesTree, isLoading: isCategoriesLoading } = useCategories({ includeChildren: true });
@@ -78,8 +84,11 @@ export default function EditBusinessPage() {
   }, [districtsResponse]);
 
   const updateBusiness = useUpdateBusiness();
+  const { data: currentPackage } = useBusinessPackage(id);
+  const assignPackage = useAssignPackage();
+  const { data: allPackagesData } = usePackages({ status: 'ACTIVE' });
 
-  const [activeTab, setActiveTab] = useState<'basic' | 'location' | 'contacts' | 'hours' | 'team' | 'products' | 'media'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'location' | 'branches' | 'contacts' | 'hours' | 'owner' | 'package' | 'team' | 'products' | 'media'>('basic');
   const [initialized, setInitialized] = useState(false);
 
   // Basic
@@ -94,6 +103,11 @@ export default function EditBusinessPage() {
   const [tags, setTags] = useState<string>('');
   const [status, setStatus] = useState<'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'CLOSED'>('DRAFT');
   const [isFeatured, setIsFeatured] = useState(false);
+
+  // Package
+  const [selectedPackageId, setSelectedPackageId] = useState<string>('');
+  const [durationDays, setDurationDays] = useState<number>(0);
+  const [customExpiryDate, setCustomExpiryDate] = useState<string>('');
 
   // Location
   const [districtId, setDistrictId] = useState('');
@@ -123,6 +137,9 @@ export default function EditBusinessPage() {
   // Hours
   const [workingHours, setWorkingHours] = useState<WorkingHoursForm[]>(emptyWorkingHours());
 
+  // Branches
+  const [branches, setBranches] = useState<BusinessBranch[]>([]);
+
   // Media
   const [logoUrl, setLogoUrl] = useState<string>('');
   const [coverUrl, setCoverUrl] = useState<string>('');
@@ -147,6 +164,24 @@ export default function EditBusinessPage() {
     if (Array.isArray(categoriesTree)) walk(categoriesTree as Category[], 0);
     return result;
   }, [categoriesTree]);
+
+  // Get max branches from selected package
+  const maxBranchesAllowed = useMemo(() => {
+    const packages = Array.isArray(allPackagesData)
+      ? allPackagesData
+      : Array.isArray((allPackagesData as any)?.data)
+        ? (allPackagesData as any).data
+        : [];
+    
+    const packageId = selectedPackageId || currentPackage?.packageId;
+    if (!packageId) return 1; // Default
+    
+    const pkg = packages.find((p: any) => p.id === packageId);
+    if (!pkg) return 1;
+    
+    const branchLimit = pkg.limits?.find((l: any) => l.limitKey === 'MAX_BRANCHES');
+    return branchLimit?.limitValue || 1;
+  }, [allPackagesData, selectedPackageId, currentPackage]);
 
   useEffect(() => {
     if (!business || initialized) return;
@@ -215,6 +250,38 @@ export default function EditBusinessPage() {
     const media = ((business as any).media ?? []) as { type: string; url: string }[];
     setGalleryUrls(media.filter((m) => m.type === 'GALLERY' || m.type === 'IMAGE').map((m) => m.url));
 
+    // Load branches
+    const loadedBranches = ((business as any).branches ?? []) as BusinessBranch[];
+    setBranches(loadedBranches.map((b: any) => ({
+      id: b.id,
+      businessId: b.businessId,
+      nameAr: b.nameAr ?? '',
+      nameEn: b.nameEn ?? '',
+      cityId: b.cityId ?? '',
+      districtId: b.districtId ?? null,
+      addressAr: b.addressAr ?? '',
+      addressEn: b.addressEn ?? '',
+      // Prisma Decimal serializes to string in JSON; normalize to number for UI
+      latitude:
+        typeof b.latitude === 'number'
+          ? b.latitude
+          : b.latitude != null && b.latitude !== ''
+            ? Number(b.latitude)
+            : null,
+      longitude:
+        typeof b.longitude === 'number'
+          ? b.longitude
+          : b.longitude != null && b.longitude !== ''
+            ? Number(b.longitude)
+            : null,
+      phone: b.phone ?? '',
+      isMain: b.isMain ?? false,
+      isActive: b.isActive ?? true,
+      sortOrder: b.sortOrder ?? 0,
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt,
+    })));
+
     // Load persons (team)
     const loadedPersons = ((business as any).persons ?? []) as BusinessPerson[];
     setPersons(loadedPersons.map((p: any) => ({
@@ -252,6 +319,13 @@ export default function EditBusinessPage() {
 
     setInitialized(true);
   }, [business, initialized]);
+
+  // Load current package
+  useEffect(() => {
+    if (currentPackage?.packageId) {
+      setSelectedPackageId(currentPackage.packageId);
+    }
+  }, [currentPackage]);
 
   const canSubmit = Boolean(nameAr.trim() && selectedGovernorate && selectedCity);
 
@@ -295,6 +369,40 @@ export default function EditBusinessPage() {
         openTime: d.isClosed ? undefined : d.openTime,
         closeTime: d.isClosed ? undefined : d.closeTime,
       })),
+      // Branches - مع التحقق من الإحداثيات
+      branches: branches
+        .filter((b) => {
+          const hasName = b.nameAr?.trim();
+          const hasCity = b.cityId;
+          
+          if (!hasName || !hasCity) {
+            console.warn('⚠️ فرع تم تجاهله:', {
+              السبب: !hasName ? '❌ الاسم العربي فارغ - يجب ملء الاسم!' : 'المدينة غير محددة',
+              الاسم: b.nameAr || '(فارغ)',
+              المدينة: b.cityId || '(غير محدد)'
+            });
+          }
+          
+          return hasName && hasCity;
+        })
+        .map((b, i) => {
+          const { id: _ignoreId, businessId: _ignoreBId, createdAt: _ignoreCA, updatedAt: _ignoreUA, ...rest } = b as any;
+          const clean: any = {};
+          Object.entries(rest).forEach(([k, v]) => {
+            // إبقاء القيم العددية (0, false) و null/undefined في الإحداثيات
+            if (k === 'latitude' || k === 'longitude') {
+              if (v !== null && v !== undefined && v !== '') {
+                clean[k] = typeof v === 'string' ? parseFloat(v) : v;
+              }
+            } else if (v !== '' && v != null) {
+              clean[k] = v;
+            }
+          });
+          clean.sortOrder = i;
+          // Main address is stored on the business itself; branches are always additional
+          clean.isMain = false;
+          return clean;
+        }),
       // Team (persons) — strip `id` and empty fields to satisfy API ValidationPipe
       persons: persons
         .filter((p) => p.nameAr?.trim())
@@ -331,9 +439,55 @@ export default function EditBusinessPage() {
 
   const handleSave = async (nextStatus?: typeof status) => {
     if (!canSubmit || !id) return;
+    console.log('🔍 Branches state before buildPayload:', branches);
+    
+    // تحقق من سلامة البيانات
+    const invalidBranches = branches.filter(b => {
+      const hasRequiredFields = b.nameAr?.trim() && b.cityId;
+      const hasCoords = typeof b.latitude === 'number' && typeof b.longitude === 'number';
+      
+      if (hasRequiredFields && !hasCoords) {
+        console.warn('⚠️ تحذير: الفرع بدون إحداثيات جغرافية:', { 
+          nameAr: b.nameAr, 
+          latitude: b.latitude, 
+          longitude: b.longitude,
+          latitudeType: typeof b.latitude,
+          longitudeType: typeof b.longitude
+        });
+        alert(`⚠️ الفرع "${b.nameAr}" بدون إحداثيات جغرافية كاملة!\n\nيرجى:\n1. انقر على الخريطة لتحديد الموقع\n2. أو أدخل الإحداثيات يدوياً`);
+        return true; // Invalid
+      }
+      
+      return false;
+    });
+    
+    if (invalidBranches.length > 0) {
+      console.warn(`❌ ${invalidBranches.length} فرع بدون إحداثيات كاملة`);
+      return;
+    }
+    
+    // Update package FIRST if changed (before updating business data)
+    // This ensures limits are checked against the NEW package, not the old/expired one
+    if (selectedPackageId && selectedPackageId !== currentPackage?.packageId) {
+      // التحقق من الباقة الافتراضية - لا ترسل تاريخ أو مدة
+      const allPackages = Array.isArray(allPackagesData) ? allPackagesData : (allPackagesData as any)?.data || [];
+      const selectedPkg = allPackages.find((p: any) => p.id === selectedPackageId);
+      
+      await assignPackage.mutateAsync({
+        businessId: id,
+        packageId: selectedPackageId,
+        // لا ترسل customExpiryDate أو durationDays للباقة الافتراضية
+        ...(!selectedPkg?.isDefault && {
+          customExpiryDate: customExpiryDate || undefined,
+          durationDays: durationDays || undefined,
+        }),
+      });
+    }
+    
     const payload = buildPayload(nextStatus);
     console.log('📤 Update payload:', JSON.stringify(payload, null, 2));
     await updateBusiness.mutateAsync({ id, data: payload });
+    
     router.push(`/businesses/${id}`);
   };
 
@@ -500,6 +654,14 @@ export default function EditBusinessPage() {
                   الموقع
                 </button>
                 <button
+                  onClick={() => setActiveTab('branches')}
+                  className={`px-4 py-2 font-medium whitespace-nowrap ${
+                    activeTab === 'branches' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'
+                  }`}
+                >
+                  الفروع
+                </button>
+                <button
                   onClick={() => setActiveTab('contacts')}
                   className={`px-4 py-2 font-medium whitespace-nowrap ${
                     activeTab === 'contacts' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'
@@ -514,6 +676,23 @@ export default function EditBusinessPage() {
                   }`}
                 >
                   ساعات العمل
+                </button>
+                <button
+                  onClick={() => setActiveTab('owner')}
+                  className={`px-4 py-2 font-medium whitespace-nowrap ${
+                    activeTab === 'owner' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'
+                  }`}
+                >
+                  <UserCheck className="w-4 h-4 inline mr-1" />
+                  المالك
+                </button>
+                <button
+                  onClick={() => setActiveTab('package')}
+                  className={`px-4 py-2 font-medium whitespace-nowrap ${
+                    activeTab === 'package' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'
+                  }`}
+                >
+                  الباقة
                 </button>
                 <button
                   onClick={() => setActiveTab('team')}
@@ -751,6 +930,21 @@ export default function EditBusinessPage() {
                 </div>
               )}
 
+              {activeTab === 'branches' && (
+                <div className="space-y-4">
+                  <BranchesManager
+                    branches={branches}
+                    onChange={setBranches}
+                    governorates={governorates}
+                    cities={cities}
+                    districts={districts}
+                    selectedCity={selectedCity}
+                    onCityChange={(cityId) => setSelectedCity(cityId)}
+                    maxBranches={maxBranchesAllowed}
+                  />
+                </div>
+              )}
+
               {activeTab === 'contacts' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -842,6 +1036,79 @@ export default function EditBusinessPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {activeTab === 'owner' && (
+                <div className="space-y-6">
+                  <OwnerManagementSection
+                    businessId={id}
+                    ownerStatus={(business as any).ownerStatus || 'unclaimed'}
+                    owner={(business as any).owner}
+                    onOwnerLinked={() => {
+                      // Refresh business data
+                      window.location.reload();
+                    }}
+                    onOwnerRemoved={() => {
+                      // Refresh business data
+                      window.location.reload();
+                    }}
+                  />
+                  
+                  {/* Ownership Audit Log */}
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">سجل التغييرات</h3>
+                    <OwnershipAuditList businessId={id} />
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'package' && (
+                <div className="space-y-4">
+                  <PackageSelector
+                    businessId={id}
+                    selectedPackageId={selectedPackageId}
+                    onPackageSelect={setSelectedPackageId}
+                    durationDays={durationDays}
+                    onDurationDaysChange={setDurationDays}
+                    customExpiryDate={customExpiryDate}
+                    onCustomExpiryDateChange={setCustomExpiryDate}
+                  />
+
+                  {selectedPackageId && (
+                    <div className="mt-6 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const allPackages = Array.isArray(allPackagesData) ? allPackagesData : (allPackagesData as any)?.data || [];
+                            const selectedPkg = allPackages.find((p: any) => p.id === selectedPackageId);
+                            
+                            await assignPackage.mutateAsync({
+                              businessId: id,
+                              packageId: selectedPackageId,
+                              // لا ترسل customExpiryDate أو durationDays للباقة الافتراضية
+                              ...(!selectedPkg?.isDefault && {
+                                durationDays: durationDays || undefined,
+                                customExpiryDate: customExpiryDate || undefined,
+                              }),
+                            });
+                          } catch (error) {
+                            console.error('Failed to assign package:', error);
+                          }
+                        }}
+                        disabled={assignPackage.isPending}
+                        className="btn btn-primary flex items-center gap-2"
+                      >
+                        {assignPackage.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Shield className="w-4 h-4" />
+                        )}
+                        تحديث / تمديد الباقة
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

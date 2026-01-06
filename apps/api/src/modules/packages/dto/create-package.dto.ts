@@ -52,6 +52,10 @@ export class CreatePackageDto {
   isPublic?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
+  @IsOptional()
   @IsNumber()
   sortOrder?: number;
 

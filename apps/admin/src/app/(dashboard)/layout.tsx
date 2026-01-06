@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/components/auth-provider';
 import { Sidebar } from '@/components/sidebar';
-import { Bell, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -46,12 +46,9 @@ export default function DashboardLayout({
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-4">
-              <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1 left-1 w-2 h-2 bg-red-500 rounded-full" />
-              </button>
+            {/* Right side placeholder for future actions */}
+            <div className="hidden sm:block text-sm text-gray-600">
+              مرحباً، {user?.name ?? 'مسؤول'}
             </div>
           </div>
         </header>

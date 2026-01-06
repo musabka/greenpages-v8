@@ -1,10 +1,22 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma, Business, BusinessStatus, LimitKey } from '@greenpages/database';
+import {
+  Prisma,
+  Business,
+  BusinessStatus,
+  LimitKey,
+  CapabilityStatus,
+  TrustLevel,
+  BusinessCapabilityRole,
+  CapabilitySource,
+} from '@greenpages/database';
 import slugify from 'slugify';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { PackagesService } from '../packages/packages.service';
+import { CommissionsService } from '../commissions/commissions.service';
+import { CapabilitiesService } from '../capabilities/capabilities.service';
+import { OwnershipNotificationService } from './ownership-notification.service';
 
 @Injectable()
 export class BusinessesService {
@@ -12,6 +24,9 @@ export class BusinessesService {
     private readonly prisma: PrismaService,
     @InjectRedis() private readonly redis: Redis,
     private readonly packagesService: PackagesService,
+    private readonly commissionsService: CommissionsService,
+    @Inject(forwardRef(() => CapabilitiesService))
+    private readonly capabilitiesService: CapabilitiesService,
   ) {}
 
   private generateSlug(name: string): string {
@@ -27,12 +42,45 @@ export class BusinessesService {
       throw new ConflictException('النشاط التجاري موجود مسبقاً');
     }
 
+    // إذا كان المنشئ مندوب، تحقق من أنه يختار محافظة من المحافظات المخصصة له
+    if (data.createdById) {
+      const creatorAgentProfile = await this.prisma.agentProfile.findUnique({
+        where: { userId: data.createdById },
+        include: {
+          governorates: { select: { governorateId: true } },
+        },
+      });
+      
+      if (creatorAgentProfile) {
+        const allowedGovernorateIds = new Set(creatorAgentProfile.governorates.map(g => g.governorateId));
+        if (!allowedGovernorateIds.has(data.governorateId)) {
+          throw new ForbiddenException('يمكنك فقط إضافة أنشطة في المحافظات المخصصة لك');
+        }
+      }
+    }
+
     const { categoryIds, contacts, workingHours, branches, persons, products, media, ...businessData } = data;
+
+    // فحص ما إذا كان المنشئ agent ولا يحتاج موافقة
+    let businessStatus = businessData.status || BusinessStatus.DRAFT;
+    if (data.createdById) {
+      const creatorAgentProfile = await this.prisma.agentProfile.findUnique({
+        where: { userId: data.createdById },
+        select: { requiresApproval: true },
+      });
+      
+      // إذا كان المنشئ agent ولا يحتاج موافقة، يتم نشر النشاط مباشرة
+      if (creatorAgentProfile && !creatorAgentProfile.requiresApproval) {
+        businessStatus = BusinessStatus.APPROVED;
+      }
+    }
 
     const business = await this.prisma.business.create({
       data: {
         ...businessData,
         slug,
+        status: businessStatus,
+        ownerStatus: data.ownerId ? 'claimed' : 'unclaimed', // تحديد ownerStatus بناءً على وجود مالك
         categories: categoryIds ? {
           create: categoryIds.map((id: string, index: number) => ({
             categoryId: id,
@@ -49,6 +97,34 @@ export class BusinessesService {
       include: this.getFullInclude(),
     });
 
+    // إذا تم تحديد مالك، أنشئ capability
+    if (data.ownerId) {
+      try {
+        await this.capabilitiesService.linkOwner(
+          business.id,
+          data.ownerId,
+          data.createdById,
+          {
+            trustLevel: 'FIELD_VERIFIED' as any,
+            source: 'AGENT' as any,
+          },
+        );
+      } catch (error) {
+        console.error('Error creating capability:', error);
+        // لا نوقف عملية إنشاء البيزنس إذا فشل إنشاء الـ capability
+      }
+    }
+
+    // إذا تم الموافقة على النشاط مباشرة، أنشئ العمولات
+    if (business.status === BusinessStatus.APPROVED) {
+      try {
+        await this.commissionsService.createCommissionsForBusiness(business.id);
+      } catch (error) {
+        console.error('Error creating commissions:', error);
+        // لا نوقف عملية إنشاء البيزنس إذا فشل إنشاء العمولات
+      }
+    }
+
     return business;
   }
 
@@ -63,10 +139,11 @@ export class BusinessesService {
     cityId?: string;
     districtId?: string;
     status?: BusinessStatus;
+    ownerStatus?: 'unclaimed' | 'claimed' | 'verified';
     featured?: boolean;
     verified?: boolean;
   }) {
-    const { skip, take, search, categoryId, governorateId, cityId, districtId, status, featured, verified } = params;
+    const { skip, take, search, categoryId, governorateId, cityId, districtId, status, ownerStatus, featured, verified } = params;
     
     const where: Prisma.BusinessWhereInput = {
       deletedAt: null,
@@ -111,6 +188,10 @@ export class BusinessesService {
       where.status = status;
     }
 
+    if (ownerStatus) {
+      where.ownerStatus = ownerStatus;
+    }
+
     if (featured !== undefined) {
       where.isFeatured = featured;
     }
@@ -125,7 +206,6 @@ export class BusinessesService {
         take,
         where,
         orderBy: params.orderBy || [
-          { package: { package: { sortOrder: 'desc' } } },
           { isFeatured: 'desc' },
           { averageRating: 'desc' },
           { createdAt: 'desc' },
@@ -135,14 +215,37 @@ export class BusinessesService {
           city: true,
           district: true,
           categories: { include: { category: true } },
+          userCapabilities: {
+            where: { status: CapabilityStatus.ACTIVE },
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+              status: true,
+              trustLevel: true,
+            },
+            take: 1,
+          },
           _count: { select: { reviews: true, branches: true } },
         },
       }),
       this.prisma.business.count({ where }),
     ]);
 
+    // Format response dengan owner data
+    const formattedBusinesses = businesses.map(business => ({
+      ...business,
+      owner: business.userCapabilities?.[0]?.user || null,
+    }));
+
     return {
-      data: businesses,
+      data: formattedBusinesses,
       meta: {
         total,
         page: skip ? Math.floor(skip / (take || 20)) + 1 : 1,
@@ -243,6 +346,16 @@ export class BusinessesService {
       await this.prisma.businessWorkingHours.createMany({
         data: workingHours.map((wh: any) => ({ ...wh, businessId: id })),
       });
+    }
+
+    // Handle branches update
+    if (branches) {
+      await this.prisma.businessBranch.deleteMany({ where: { businessId: id } });
+      if (branches.length) {
+        await this.prisma.businessBranch.createMany({
+          data: branches.map((b: any) => ({ ...b, businessId: id })),
+        });
+      }
     }
 
     // Handle persons (team) update
@@ -370,15 +483,34 @@ export class BusinessesService {
   }
 
   async getStats() {
-    const [total, approved, pending, featured, verified] = await Promise.all([
+    const [total, approved, pending, featured, verified, claimed, unclaimed, verifiedOwnership] = await Promise.all([
       this.prisma.business.count({ where: { deletedAt: null } }),
       this.prisma.business.count({ where: { status: BusinessStatus.APPROVED, deletedAt: null } }),
       this.prisma.business.count({ where: { status: BusinessStatus.PENDING, deletedAt: null } }),
       this.prisma.business.count({ where: { isFeatured: true, deletedAt: null } }),
       this.prisma.business.count({ where: { isVerified: true, deletedAt: null } }),
+      this.prisma.business.count({ where: { ownerStatus: 'claimed', deletedAt: null } }),
+      this.prisma.business.count({ where: { ownerStatus: 'unclaimed', deletedAt: null } }),
+      this.prisma.business.count({
+        where: {
+          userCapabilities: { some: { status: CapabilityStatus.ACTIVE } },
+          deletedAt: null,
+        },
+      }),
     ]);
 
-    return { total, approved, pending, featured, verified };
+    return {
+      total,
+      approved,
+      pending,
+      featured,
+      verified,
+      ownership: {
+        claimed,
+        unclaimed,
+        verified: verifiedOwnership,
+      },
+    };
   }
 
   async search(query: string, params: { governorateId?: string; cityId?: string; categoryId?: string; limit?: number }) {
@@ -452,6 +584,23 @@ export class BusinessesService {
       district: true,
       owner: { select: { id: true, email: true, displayName: true } },
       agent: { select: { id: true, email: true, displayName: true } },
+      userCapabilities: {
+        where: { status: CapabilityStatus.ACTIVE },
+        select: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+            },
+          },
+          status: true,
+          trustLevel: true,
+        },
+        take: 1,
+      },
       categories: { include: { category: true } },
       branches: { where: { isActive: true }, orderBy: { sortOrder: 'asc' as const } },
       workingHours: { orderBy: { dayOfWeek: 'asc' as const } },
@@ -460,6 +609,215 @@ export class BusinessesService {
       persons: { where: { isPublic: true }, orderBy: { sortOrder: 'asc' as const } },
       products: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' as const } },
       _count: { select: { reviews: true, branches: true } },
+    };
+  }
+
+  async linkOwner(businessId: string, userId: string, performedBy: string): Promise<any> {
+    const business = await this.findById(businessId);
+    if (!business) {
+      throw new NotFoundException('النشاط التجاري غير موجود');
+    }
+
+    // Check if user exists
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('المستخدم غير موجود');
+    }
+
+    // Create audit log entry
+    try {
+      await this.prisma.businessOwnershipAudit.create({
+        data: {
+          businessId,
+          userId,
+          action: 'LINKED',
+          performedBy,
+          previousStatus: business.ownerStatus,
+          newStatus: 'claimed',
+          changes: {
+            linkedUser: `${user.firstName} ${user.lastName}`,
+            email: user.email,
+          },
+        },
+      });
+    } catch (error) {
+      // If audit log fails, continue but log error
+      console.error('Failed to create audit log:', error);
+    }
+
+    // Create or update the capability
+    const existingCapability = await this.prisma.userBusinessCapability.findUnique({
+      where: {
+        userId_businessId_role: { userId, businessId, role: BusinessCapabilityRole.OWNER },
+      },
+    });
+
+    if (existingCapability) {
+      await this.prisma.userBusinessCapability.update({
+        where: { userId_businessId_role: { userId, businessId, role: BusinessCapabilityRole.OWNER } },
+        data: { status: CapabilityStatus.ACTIVE, activatedAt: new Date() },
+      });
+    } else {
+      await this.prisma.userBusinessCapability.create({
+        data: {
+          userId,
+          businessId,
+          role: BusinessCapabilityRole.OWNER,
+          status: CapabilityStatus.ACTIVE,
+          trustLevel: TrustLevel.FIELD_VERIFIED,
+          source: CapabilitySource.ADMIN,
+          activatedAt: new Date(),
+        },
+      });
+    }
+
+    // Update business owner status
+    await this.prisma.business.update({
+      where: { id: businessId },
+      data: { ownerStatus: 'claimed' },
+    });
+
+    // Send notification to the new owner
+    await OwnershipNotificationService.notifyOwnerLinked({
+      userId,
+      businessId,
+      businessName: business.nameAr,
+      performedBy,
+    });
+
+    return this.findById(businessId);
+  }
+
+  async unlinkOwner(businessId: string, performedBy: string): Promise<any> {
+    const business = await this.findById(businessId);
+    if (!business) {
+      throw new NotFoundException('النشاط التجاري غير موجود');
+    }
+
+    // Get current owner
+    const currentCapability = await this.prisma.userBusinessCapability.findFirst({
+      where: { businessId, role: BusinessCapabilityRole.OWNER, status: CapabilityStatus.ACTIVE },
+      include: { user: true },
+    });
+
+    // Create audit log entry
+    try {
+      await this.prisma.businessOwnershipAudit.create({
+        data: {
+          businessId,
+          userId: currentCapability?.userId || null,
+          action: 'UNLINKED',
+          performedBy,
+          previousStatus: business.ownerStatus,
+          newStatus: 'unclaimed',
+          changes: {
+            unlinkedUser: currentCapability ? `${currentCapability.user.firstName} ${currentCapability.user.lastName}` : 'N/A',
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Failed to create audit log:', error);
+    }
+
+    // Delete the capability
+    await this.prisma.userBusinessCapability.deleteMany({
+      where: { businessId, role: BusinessCapabilityRole.OWNER },
+    });
+
+    // Update business owner status
+    await this.prisma.business.update({
+      where: { id: businessId },
+      data: { ownerStatus: 'unclaimed' },
+    });
+
+    // Send notification to the unlinked owner
+    if (currentCapability) {
+      await OwnershipNotificationService.notifyOwnerUnlinked({
+        userId: currentCapability.userId,
+        businessId,
+        businessName: business.nameAr,
+        performedBy,
+      });
+    }
+
+    return this.findById(businessId);
+  }
+
+  async getOwnershipAudit(businessId: string): Promise<any> {
+    const business = await this.findById(businessId);
+    if (!business) {
+      throw new NotFoundException('النشاط التجاري غير موجود');
+    }
+
+    return this.prisma.businessOwnershipAudit.findMany({
+      where: { businessId },
+      include: {
+        performedByUser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async bulkLinkOwner(businessIds: string[], userId: string, performedBy: string): Promise<any> {
+    // Validate user exists
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('المستخدم غير موجود');
+    }
+
+    const results = {
+      success: [],
+      failed: [],
+      total: businessIds.length,
+    };
+
+    for (const businessId of businessIds) {
+      try {
+        await this.linkOwner(businessId, userId, performedBy);
+        results.success.push(businessId);
+      } catch (error) {
+        results.failed.push({
+          businessId,
+          error: error.message || 'فشل في ربط النشاط',
+        });
+      }
+    }
+
+    return {
+      message: `تم ربط ${results.success.length} من ${results.total} أنشطة بنجاح`,
+      ...results,
+    };
+  }
+
+  async bulkUnlinkOwner(businessIds: string[], performedBy: string): Promise<any> {
+    const results = {
+      success: [],
+      failed: [],
+      total: businessIds.length,
+    };
+
+    for (const businessId of businessIds) {
+      try {
+        await this.unlinkOwner(businessId, performedBy);
+        results.success.push(businessId);
+      } catch (error) {
+        results.failed.push({
+          businessId,
+          error: error.message || 'فشل في فصل النشاط',
+        });
+      }
+    }
+
+    return {
+      message: `تم فصل ${results.success.length} من ${results.total} أنشطة بنجاح`,
+      ...results,
     };
   }
 }

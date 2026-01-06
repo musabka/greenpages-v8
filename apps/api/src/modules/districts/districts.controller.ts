@@ -46,7 +46,7 @@ export class DistrictsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إضافة حي' })
   async create(@Body() createDistrictDto: CreateDistrictDto) {
@@ -55,7 +55,7 @@ export class DistrictsController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث حي' })
   async update(@Param('id') id: string, @Body() updateDistrictDto: UpdateDistrictDto) {
@@ -64,7 +64,7 @@ export class DistrictsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'حذف حي' })
   async remove(@Param('id') id: string) {

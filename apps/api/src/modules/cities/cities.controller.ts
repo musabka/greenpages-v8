@@ -50,7 +50,7 @@ export class CitiesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إضافة مدينة' })
   async create(@Body() createCityDto: CreateCityDto) {
@@ -59,7 +59,7 @@ export class CitiesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث مدينة' })
   async update(@Param('id') id: string, @Body() updateCityDto: UpdateCityDto) {
@@ -68,7 +68,7 @@ export class CitiesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'حذف مدينة' })
   async remove(@Param('id') id: string) {

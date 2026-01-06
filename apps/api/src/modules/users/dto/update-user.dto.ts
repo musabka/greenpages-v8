@@ -66,4 +66,25 @@ export class UpdateUserDto {
   @ApiPropertyOptional({ description: 'البريد الإلكتروني موثق' })
   @IsOptional()
   emailVerified?: boolean;
+
+  @ApiPropertyOptional({ 
+    description: 'قائمة المحافظات التي يديرها (لمدير المحافظة أو المندوب)',
+    type: [String],
+    example: ['uuid1', 'uuid2']
+  })
+  @IsOptional()
+  @IsUUID('4', { each: true, message: 'معرف المحافظة غير صحيح' })
+  managedGovernorateIds?: string[];
+
+  @ApiPropertyOptional({ description: 'نسبة الصفحات الخضراء (لمدير المحافظة)' })
+  @IsOptional()
+  companyCommissionRate?: number;
+
+  @ApiPropertyOptional({ description: 'الراتب الشهري الأساسي للمندوب (ل.س)' })
+  @IsOptional()
+  agentSalary?: number;
+
+  @ApiPropertyOptional({ description: 'نسبة العمولة للمندوب (%)' })
+  @IsOptional()
+  agentCommission?: number;
 }

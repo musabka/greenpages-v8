@@ -1,4 +1,4 @@
-import { IsUUID, IsBoolean, IsOptional, IsNumber } from 'class-validator';
+import { IsUUID, IsBoolean, IsOptional, IsNumber, IsDateString } from 'class-validator';
 
 export class AssignPackageDto {
   @IsUUID()
@@ -14,4 +14,8 @@ export class AssignPackageDto {
   @IsOptional()
   @IsBoolean()
   autoRenew?: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  customExpiryDate?: string; // تاريخ انتهاء صلاحية مخصص (له الأولوية على durationDays)
 }

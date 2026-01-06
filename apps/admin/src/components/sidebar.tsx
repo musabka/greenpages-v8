@@ -17,29 +17,119 @@ import {
   ChevronDown,
   Menu,
   X,
-  Package,
+  Shield,
+  RefreshCw,
+  Bell,
+  DollarSign,
+  Wallet,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const navigation = [
-  { name: 'الرئيسية', href: '/', icon: LayoutDashboard },
-  { name: 'الأنشطة التجارية', href: '/businesses', icon: Building2 },
-  { name: 'الباقات', href: '/packages', icon: Package },
-  { name: 'التصنيفات', href: '/categories', icon: FolderTree },
+  { 
+    name: 'الرئيسية', 
+    href: '/', 
+    icon: LayoutDashboard,
+    roles: ['ADMIN', 'SUPERVISOR']
+  },
+  { 
+    name: 'الأنشطة التجارية', 
+    href: '/businesses', 
+    icon: Building2,
+    roles: ['ADMIN', 'SUPERVISOR']
+  },
+  { 
+    name: 'التصنيفات', 
+    href: '/categories', 
+    icon: FolderTree,
+    roles: ['ADMIN', 'SUPERVISOR']
+  },
   {
     name: 'المواقع الجغرافية',
     icon: MapPin,
+    roles: ['ADMIN', 'SUPERVISOR'],
     children: [
       { name: 'المحافظات', href: '/governorates' },
       { name: 'المدن', href: '/cities' },
       { name: 'الأحياء', href: '/districts' },
     ],
   },
-  { name: 'المستخدمين', href: '/users', icon: Users },
-  { name: 'التقييمات', href: '/reviews', icon: Star },
-  { name: 'الإعلانات', href: '/ads', icon: Megaphone },
-  { name: 'الصفحات', href: '/pages', icon: FileText },
-  { name: 'الإعدادات', href: '/settings', icon: Settings },
+  { 
+    name: 'الباقات', 
+    href: '/packages', 
+    icon: Shield,
+    roles: ['ADMIN']  // المدير فقط
+  },
+  { 
+    name: 'متابعة الاشتراكات', 
+    href: '/subscriptions', 
+    icon: Shield,
+    roles: ['ADMIN', 'SUPERVISOR']
+  },
+  { 
+    name: 'متابعة التجديدات', 
+    href: '/renewals', 
+    icon: RefreshCw,
+    roles: ['ADMIN', 'SUPERVISOR']
+  },
+  { 
+    name: 'الإدارة المالية', 
+    href: '/financial', 
+    icon: DollarSign,
+    roles: ['ADMIN']  // المدير فقط
+  },
+  {
+    name: 'المحفظة',
+    icon: Wallet,
+    roles: ['ADMIN'],
+    children: [
+      { name: 'نظرة عامة', href: '/wallet' },
+      { name: 'طلبات الشحن', href: '/wallet/top-ups' },
+      { name: 'طلبات السحب', href: '/wallet/withdrawals' },
+      { name: 'محافظ المستخدمين', href: '/wallet/users' },
+      { name: 'شحن جماعي', href: '/wallet/bulk-credit' },
+    ],
+  },
+  {
+    name: 'الإشعارات',
+    icon: Bell,
+    roles: ['ADMIN', 'SUPERVISOR'],
+    children: [
+      { name: 'إرسال إشعار جماعي', href: '/notifications/bulk' },
+      { name: 'قوالب الإشعارات', href: '/notifications/templates' },
+      { name: 'إعدادات الإشعارات', href: '/notifications/settings' },
+    ],
+  },
+  { 
+    name: 'المستخدمين', 
+    href: '/users', 
+    icon: Users,
+    roles: ['ADMIN', 'SUPERVISOR']
+  },
+  { 
+    name: 'التقييمات', 
+    href: '/reviews', 
+    icon: Star,
+    roles: ['ADMIN', 'SUPERVISOR']
+  },
+  { 
+    name: 'الإعلانات', 
+    href: '/ads', 
+    icon: Megaphone,
+    roles: ['ADMIN', 'SUPERVISOR']
+  },
+  { 
+    name: 'الصفحات', 
+    href: '/pages', 
+    icon: FileText,
+    roles: ['ADMIN', 'SUPERVISOR']
+  },
+  { 
+    name: 'الإعدادات', 
+    href: '/settings', 
+    icon: Settings,
+    roles: ['ADMIN']  // المدير فقط
+  },
 ];
 
 export function Sidebar() {
@@ -47,6 +137,11 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+
+  // Filter navigation based on user role
+  const filteredNavigation = navigation.filter(item => 
+    !item.roles || (user?.role && item.roles.includes(user.role))
+  );
 
   const toggleExpand = (name: string) => {
     setExpandedItems((prev) =>
@@ -76,7 +171,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 overflow-y-auto">
         <ul className="space-y-1">
-          {navigation.map((item) => (
+          {filteredNavigation.map((item) => (
             <li key={item.name}>
               {item.children ? (
                 <div>

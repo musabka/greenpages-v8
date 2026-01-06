@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Default API runs on 3000; admin runs on 3001.
+// API runs on port 3000; admin dashboard runs on 3001
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 const api = axios.create({
@@ -27,6 +27,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Only handle 401 (Unauthorized) - don't logout on other errors like 404, 500, etc.
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -57,6 +58,7 @@ api.interceptors.response.use(
       }
     }
 
+    // For all other errors (404, 500, network errors, etc.), just reject without logout
     return Promise.reject(error);
   }
 );
@@ -68,7 +70,7 @@ export interface User {
   firstName: string;
   lastName: string;
   phone?: string;
-  role: 'SUPER_ADMIN' | 'ADMIN' | 'MODERATOR' | 'AGENT' | 'USER';
+  role: 'ADMIN' | 'SUPERVISOR' | 'GOVERNORATE_MANAGER' | 'AGENT' | 'BUSINESS' | 'USER';
   status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING';
   isActive?: boolean;
   emailVerified?: boolean;
@@ -192,16 +194,22 @@ export interface BusinessWorkingHours {
 }
 
 export interface BusinessBranch {
+  id?: string;
+  businessId?: string;
   nameAr: string;
   nameEn?: string;
   cityId: string;
-  districtId?: string;
+  districtId?: string | null;
   addressAr?: string;
   addressEn?: string;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   phone?: string;
   isMain?: boolean;
+  isActive?: boolean;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BusinessPerson {
@@ -429,6 +437,90 @@ export interface DashboardStats {
   views: { total: number; today: number };
 }
 
+export type PackageStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+
+export type FeatureKey = 
+  // Ads
+  | 'AD_ALLOWED'
+  // عناصر المحتوى
+  | 'SHOW_DESCRIPTION'
+  | 'SHOW_GALLERY'
+  | 'SHOW_TEAM'
+  | 'SHOW_PRODUCTS'
+  | 'SHOW_BRANCHES'
+  | 'SHOW_WORKING_HOURS'
+  | 'SHOW_REVIEWS'
+  // عناصر التواصل
+  | 'SHOW_PHONE'
+  | 'SHOW_WHATSAPP'
+  | 'SHOW_EMAIL'
+  | 'SHOW_WEBSITE'
+  | 'SHOW_SOCIAL_LINKS'
+  // عناصر الموقع
+  | 'SHOW_MAP'
+  | 'SHOW_ADDRESS';
+
+export type LimitKey = 
+  | 'MAX_BRANCHES'
+  | 'MAX_PERSONS'
+  | 'MAX_ADS'
+  | 'MAX_GALLERY_PHOTOS'
+  | 'MAX_PRODUCTS';
+
+export interface PackageFeature {
+  id?: string;
+  packageId?: string;
+  featureKey: FeatureKey;
+  isEnabled: boolean;
+}
+
+export interface PackageLimit {
+  id?: string;
+  packageId?: string;
+  limitKey: LimitKey;
+  limitValue: number;
+}
+
+export interface Package {
+  id: string;
+  nameAr: string;
+  nameEn?: string;
+  slug: string;
+  descriptionAr?: string;
+  descriptionEn?: string;
+  price: number | string;
+  durationDays: number;
+  status: PackageStatus;
+  isPublic: boolean;
+  isDefault: boolean;
+  sortOrder: number;
+  features?: PackageFeature[];
+  limits?: PackageLimit[];
+  _count?: {
+    businessPackages?: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessPackage {
+  id: string;
+  businessId: string;
+  packageId: string;
+  startDate: string;
+  endDate?: string;
+  isActive: boolean;
+  autoRenew: boolean;
+  overrideEnabled: boolean;
+  overrideReason?: string;
+  overrideExpiresAt?: string;
+  overrideByUserId?: string;
+  package?: Package;
+  business?: Partial<Business>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Auth API
 export const authApi = {
   login: (email: string, password: string) =>
@@ -446,8 +538,14 @@ export const dashboardApi = {
     api.get<Business[]>('/admin/pending-businesses', { params: { limit } }),
   getPendingReviews: (limit?: number) =>
     api.get<Review[]>('/admin/pending-reviews', { params: { limit } }),
-  getRecentActivity: (limit?: number) =>
-    api.get<any[]>('/admin/recent-activity', { params: { limit } }),
+  getRecentActivity: (params?: { limit?: number; period?: 'day' | 'week' | 'month' }) =>
+    api.get<any[]>('/admin/recent-activity', { params }),
+  getPendingBusinessesCount: () =>
+    api.get<{ count: number }>('/admin/pending-businesses-count'),
+  getPendingReviewsCount: () =>
+    api.get<{ count: number }>('/admin/pending-reviews-count'),
+  getChartData: (params?: { period?: 'day' | 'week' | 'month' }) =>
+    api.get<any[]>('/admin/chart-data', { params }),
 };
 
 // Business API
@@ -597,6 +695,233 @@ export const uploadApi = {
   },
   // API currently does not expose delete endpoint for uploaded files.
   deleteImage: (_url: string) => Promise.reject(new Error('Delete image is not supported')),
+};
+
+// Package API
+export const packageApi = {
+  getAll: (params?: { page?: number; limit?: number; status?: string }) =>
+    api.get<PaginatedResponse<Package>>('/packages', { params }),
+  getById: (id: string) => api.get<Package>(`/packages/${id}`),
+  create: (data: Partial<Package>) => api.post<Package>('/packages', data),
+  update: (id: string, data: Partial<Package>) =>
+    api.put<Package>(`/packages/${id}`, data),
+  delete: (id: string) => api.delete(`/packages/${id}`),
+  setDefault: (id: string) => api.post(`/packages/${id}/set-default`),
+  assignToBusiness: (data: { businessId: string; packageId: string; durationDays?: number; customExpiryDate?: string }) =>
+    api.post('/packages/assign', data),
+  getBusinessPackage: (businessId: string) =>
+    api.get<BusinessPackage>(`/packages/business/${businessId}`),
+  getExpiring: (days?: number) =>
+    api.get<BusinessPackage[]>('/packages/expiring', { params: { days } }),
+  getAllSubscriptions: (params?: {
+    search?: string;
+    status?: 'active' | 'expired' | 'expiring';
+    packageId?: string;
+    daysThreshold?: number;
+  }) =>
+    api.get<BusinessPackage[]>('/packages/subscriptions', { params }),
+  enableOverride: (businessId: string, data: { reason: string; expiresAt?: string }) =>
+    api.post(`/packages/business/${businessId}/override`, data),
+  disableOverride: (businessId: string) =>
+    api.delete(`/packages/business/${businessId}/override`),
+};
+
+// ============================================
+// Renewals API - نظام متابعة التجديدات
+// ============================================
+
+export interface RenewalRecord {
+  id: string;
+  businessId: string;
+  businessPackageId: string;
+  currentPackageId: string;
+  expiryDate: string;
+  status: 'PENDING' | 'CONTACTED' | 'VISIT_SCHEDULED' | 'VISITED' | 'RENEWED' | 'DECLINED' | 'POSTPONED' | 'NO_RESPONSE' | 'EXPIRED';
+  priority: number;
+  assignedAgentId?: string;
+  assignedAt?: string;
+  finalDecision?: 'ACCEPTED' | 'DECLINED' | 'THINKING' | 'UPGRADE' | 'DOWNGRADE';
+  decisionDate?: string;
+  decisionNotes?: string;
+  newPackageId?: string;
+  nextFollowUpDate?: string;
+  followUpCount: number;
+  internalNotes?: string;
+  business: {
+    id: string;
+    nameAr: string;
+    nameEn?: string;
+    logo?: string;
+    phone?: string;
+    mobile?: string;
+  };
+  currentPackage: {
+    id: string;
+    nameAr: string;
+    nameEn?: string;
+    price: number;
+    durationDays: number;
+    status?: string;
+  };
+  newPackage?: {
+    id: string;
+    nameAr: string;
+    nameEn?: string;
+    price: number;
+    durationDays: number;
+    status?: string;
+  };
+  assignedAgent?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+  };
+  contacts?: RenewalContact[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RenewalContact {
+  id: string;
+  renewalRecordId: string;
+  agentId: string;
+  contactMethod: 'PHONE_CALL' | 'WHATSAPP' | 'VISIT' | 'EMAIL' | 'SMS';
+  contactDate: string;
+  duration?: number;
+  outcome?: 'ACCEPTED' | 'DECLINED' | 'THINKING' | 'UPGRADE' | 'DOWNGRADE';
+  notes?: string;
+  visitAddress?: string;
+  visitLatitude?: number;
+  visitLongitude?: number;
+  nextContactDate?: string;
+  agent?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+  createdAt: string;
+}
+
+export interface RenewalStatistics {
+  total: number;
+  byStatus: {
+    pending: number;
+    contacted: number;
+    visited: number;
+    renewed: number;
+    declined: number;
+    expired: number;
+  };
+  byPriority: Record<number, number>;
+  renewalRate: string;
+  followUpsToday: number;
+}
+
+export interface AgentPerformance {
+  totalAssigned: number;
+  renewed: number;
+  declined: number;
+  pending: number;
+  totalContacts: number;
+  conversionRate: string;
+}
+
+export const renewalsApi = {
+  // قائمة التجديدات
+  getAll: (params?: {
+    status?: string;
+    agentId?: string;
+    priority?: number;
+    fromDate?: string;
+    toDate?: string;
+    page?: number;
+    limit?: number;
+  }) => api.get<PaginatedResponse<RenewalRecord>>('/renewals', { params }),
+
+  // تفاصيل سجل تجديد
+  getById: (id: string) => api.get<RenewalRecord>(`/renewals/${id}`),
+
+  // الإحصائيات
+  getStatistics: (agentId?: string) =>
+    api.get<RenewalStatistics>('/renewals/statistics', { params: { agentId } }),
+
+  // أداء المندوب
+  getAgentPerformance: (agentId: string, fromDate?: string, toDate?: string) =>
+    api.get<AgentPerformance>(`/renewals/agent/${agentId}/performance`, {
+      params: { fromDate, toDate },
+    }),
+
+  // إنشاء سجل تجديد يدوي
+  create: (data: {
+    businessId: string;
+    assignedAgentId?: string;
+    priority?: number;
+    internalNotes?: string;
+  }) => api.post<RenewalRecord>('/renewals', data),
+
+  // تعيين مندوب
+  assignAgent: (id: string, agentId: string) =>
+    api.patch<RenewalRecord>(`/renewals/${id}/assign`, { agentId }),
+
+  // تعيين مندوب لمجموعة
+  bulkAssignAgent: (renewalRecordIds: string[], agentId: string) =>
+    api.patch('/renewals/bulk-assign', { renewalRecordIds, agentId }),
+
+  // تحديث الحالة
+  updateStatus: (id: string, data: {
+    status: string;
+    notes?: string;
+    nextFollowUpDate?: string;
+  }) => api.patch<RenewalRecord>(`/renewals/${id}/status`, data),
+
+  // إضافة سجل تواصل
+  addContact: (data: {
+    renewalRecordId: string;
+    contactMethod: string;
+    contactDate: string;
+    duration?: number;
+    outcome?: string;
+    notes?: string;
+    visitAddress?: string;
+    visitLatitude?: number;
+    visitLongitude?: number;
+    nextContactDate?: string;
+  }) => api.post<RenewalContact>('/renewals/contacts', data),
+
+  // سجلات التواصل
+  getContacts: (renewalRecordId: string) =>
+    api.get<RenewalContact[]>(`/renewals/${renewalRecordId}/contacts`),
+
+  // معالجة القرار
+  processDecision: (id: string, data: {
+    decision: string;
+    notes?: string;
+    newPackageId?: string;
+    customExpiryDate?: string;
+    durationDays?: number;
+    postponeUntil?: string;
+  }) => api.post<RenewalRecord>(`/renewals/${id}/decision`, data),
+
+  // إنشاء سجلات التجديد يدوياً
+  generate: () => api.post('/renewals/generate'),
+
+  // تحديث الأولويات يدوياً
+  updatePriorities: () => api.post('/renewals/update-priorities'),
+};
+
+// Capabilities API
+export const capabilitiesApi = {
+  searchUser: (identifier: string) =>
+    api.get(`/capabilities/search-user/${encodeURIComponent(identifier)}`),
+  linkOwner: (data: { identifier: string; businessId: string }) =>
+    api.post('/capabilities/link-owner', data),
+  inviteOwner: (data: { businessId: string; phone: string; email?: string; ownerName?: string }) =>
+    api.post('/capabilities/invite-owner', data),
+  getMyCapabilities: () =>
+    api.get('/capabilities/my-capabilities'),
+  claimOwnership: (claimToken: string) =>
+    api.post('/capabilities/claim-ownership', { claimToken }),
 };
 
 export default api;

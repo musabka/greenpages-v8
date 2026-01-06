@@ -16,7 +16,7 @@ export class AdsController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'قائمة الإعلانات' })
   @ApiQuery({ name: 'status', required: false, enum: AdStatus })
@@ -47,7 +47,7 @@ export class AdsController {
 
   @Get('stats/targeting')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إحصائيات الاستهداف الجغرافي' })
   async getTargetingStats() {
@@ -56,7 +56,7 @@ export class AdsController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'عرض إعلان' })
   async findOne(@Param('id') id: string) {
@@ -65,7 +65,7 @@ export class AdsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إضافة إعلان' })
   async create(@Body() createAdDto: CreateAdDto) {
@@ -74,7 +74,7 @@ export class AdsController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث إعلان' })
   async update(@Param('id') id: string, @Body() updateAdDto: UpdateAdDto) {
@@ -91,7 +91,7 @@ export class AdsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'حذف إعلان' })
   async remove(@Param('id') id: string) {

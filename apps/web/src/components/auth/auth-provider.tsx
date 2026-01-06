@@ -59,12 +59,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const me = await authApi.me();
         setUser(me.data);
         localStorage.setItem('user_data', JSON.stringify(me.data));
-      } catch (error) {
+      } catch (error: any) {
         console.error('Auth check failed:', error);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user_data');
-        setUser(null);
+        
+        // Only logout on 401 (Unauthorized) - don't logout on other errors
+        if (error?.response?.status === 401) {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user_data');
+          setUser(null);
+        } else {
+          // For other errors, keep the user logged in (they may be offline or API is down)
+          // Try to restore user from localStorage
+          const cachedUser = localStorage.getItem('user_data');
+          if (cachedUser) {
+            try {
+              setUser(JSON.parse(cachedUser));
+            } catch {
+              setUser(null);
+            }
+          } else {
+            setUser(null);
+          }
+        }
       } finally {
         setIsLoading(false);
       }
@@ -75,9 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const res = await authApi.login(email, password);
+    
+    // Store in localStorage
     localStorage.setItem('accessToken', res.data.accessToken);
     localStorage.setItem('refreshToken', res.data.refreshToken);
     localStorage.setItem('user_data', JSON.stringify(res.data.user));
+    
+    // Store in cookie for middleware
+    document.cookie = `token=${res.data.accessToken}; path=/; max-age=${30 * 24 * 60 * 60}`; // 30 days
+    
     setUser(res.data.user);
     router.push('/');
   };
@@ -93,9 +116,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     authApi.logout().catch(() => undefined);
+    
+    // Clear localStorage
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user_data');
+    
+    // Clear cookie
+    document.cookie = 'token=; path=/; max-age=0';
+    
     setUser(null);
     router.push('/');
   };

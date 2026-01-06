@@ -14,7 +14,7 @@ export class SettingsController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'جميع الإعدادات' })
   @ApiQuery({ name: 'group', required: false, type: String })
@@ -46,7 +46,7 @@ export class SettingsController {
 
   @Get('group/:group')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إعدادات مجموعة محددة' })
   async getByGroup(@Param('group') group: string) {
@@ -55,7 +55,7 @@ export class SettingsController {
 
   @Get(':key')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إعداد محدد' })
   async findOne(@Param('key') key: string) {
@@ -64,7 +64,7 @@ export class SettingsController {
 
   @Put(':key')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث إعداد' })
   async update(@Param('key') key: string, @Body() body: { valueAr?: string; valueEn?: string }) {
@@ -73,7 +73,7 @@ export class SettingsController {
 
   @Post('bulk')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'تحديث عدة إعدادات' })
   async bulkUpdate(@Body() body: { settings: { key: string; valueAr?: string; valueEn?: string }[] }) {

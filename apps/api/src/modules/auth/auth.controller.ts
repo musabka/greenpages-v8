@@ -43,6 +43,15 @@ export class AuthController {
     return this.authService.refreshToken(refreshTokenDto.refreshToken);
   }
 
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'تسجيل الخروج' })
+  @ApiResponse({ status: 200, description: 'تم تسجيل الخروج بنجاح' })
+  async logout() {
+    return { message: 'تم تسجيل الخروج بنجاح' };
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

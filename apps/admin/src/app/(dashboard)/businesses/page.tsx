@@ -18,9 +18,13 @@ import {
   Download,
   BadgeCheck,
   Loader2,
+  UserCheck,
+  Shield,
 } from 'lucide-react';
 import { useBusinesses, useDeleteBusiness, useApproveBusiness, useRejectBusiness } from '@/lib/hooks';
 import toast from 'react-hot-toast';
+import { OwnerStatusBadge, OwnerInfoBadge, OwnerLinkingSection, QuickActionsMenu } from '@/components/business';
+import { BulkOwnershipActions } from '@/components/business/bulk-ownership-actions';
 
 const statusConfig = {
   PENDING: { label: 'قيد المراجعة', class: 'badge-warning' },
@@ -32,8 +36,11 @@ const statusConfig = {
 export default function BusinessesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [ownerStatusFilter, setOwnerStatusFilter] = useState('all');
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [page, setPage] = useState(1);
+  const [showOwnerLinkModal, setShowOwnerLinkModal] = useState(false);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
 
   const { data, isLoading } = useBusinesses({
     page,
@@ -137,6 +144,18 @@ export default function BusinessesPage() {
                 <option value="REJECTED">مرفوض</option>
                 <option value="SUSPENDED">موقوف</option>
               </select>
+              
+              <select
+                value={ownerStatusFilter}
+                onChange={(e) => setOwnerStatusFilter(e.target.value)}
+                className="select w-40"
+              >
+                <option value="all">كل الملكية</option>
+                <option value="unclaimed">غير مرتبط</option>
+                <option value="claimed">مرتبط</option>
+                <option value="verified">موثّق</option>
+              </select>
+              
               <button className="btn btn-outline">
                 <Filter className="w-4 h-4" />
                 فلاتر متقدمة
@@ -192,6 +211,7 @@ export default function BusinessesPage() {
                   />
                 </th>
                 <th>النشاط التجاري</th>
+                <th>المالك</th>
                 <th>التصنيف</th>
                 <th>المدينة</th>
                 <th>الحالة</th>
@@ -245,6 +265,29 @@ export default function BusinessesPage() {
                       </div>
                     </div>
                   </td>
+                  
+                  <td>
+                    {(business as any).ownerStatus === 'unclaimed' ? (
+                      <button
+                        onClick={() => {
+                          setSelectedBusinessId(business.id);
+                          setShowOwnerLinkModal(true);
+                        }}
+                        className="text-sm text-primary-600 hover:text-primary-800 flex items-center gap-1"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        ربط مالك
+                      </button>
+                    ) : (
+                      <OwnerInfoBadge
+                        status={(business as any).ownerStatus || 'unclaimed'}
+                        ownerName={(business as any).owner ? `${(business as any).owner.firstName} ${(business as any).owner.lastName}` : undefined}
+                        ownerPhone={(business as any).owner?.phone}
+                        compact
+                      />
+                    )}
+                  </td>
+                  
                   <td className="text-gray-600">{business.category?.nameAr}</td>
                   <td className="text-gray-600">{business.city?.nameAr ?? business.governorate?.nameAr}</td>
                   <td>
@@ -274,43 +317,19 @@ export default function BusinessesPage() {
                     </div>
                   </td>
                   <td className="text-gray-500">{new Date(business.createdAt).toLocaleDateString('ar-SY')}</td>
-                  <td>
-                    <div className="flex items-center gap-1">
-                      {business.status === 'PENDING' && (
-                        <>
-                          <button 
-                            onClick={() => handleApprove(business.id)}
-                            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleReject(business.id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      <Link
-                        href={`/businesses/${business.id}`}
-                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Link>
-                      <Link
-                        href={`/businesses/${business.id}/edit`}
-                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Link>
-                      <button 
-                        onClick={() => handleDelete(business.id, business.nameAr)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                  <td className="w-10">
+                    <QuickActionsMenu
+                      businessId={business.id}
+                      businessName={business.nameAr}
+                      ownerStatus={(business as any).ownerStatus}
+                      onLinkOwner={(id) => {
+                        setSelectedBusinessId(id);
+                        setShowOwnerLinkModal(true);
+                      }}
+                      onDelete={handleDelete}
+                      viewPath="/businesses"
+                      editPath="/businesses"
+                    />
                   </td>
                 </tr>
                   );
@@ -348,6 +367,60 @@ export default function BusinessesPage() {
           </div>
         </div>
       )}
+      
+      {/* Owner Linking Modal */}
+      {showOwnerLinkModal && selectedBusinessId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">ربط مالك النشاط التجاري</h2>
+              <button
+                onClick={() => {
+                  setShowOwnerLinkModal(false);
+                  setSelectedBusinessId(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <OwnerLinkingSection
+                businessId={selectedBusinessId}
+                onOwnerLinked={() => {
+                  setShowOwnerLinkModal(false);
+                  setSelectedBusinessId(null);
+                  window.location.reload(); // Refresh to update list
+                }}
+                onInviteSent={() => {
+                  setShowOwnerLinkModal(false);
+                  setSelectedBusinessId(null);
+                }}
+              />
+              
+              <div className="mt-6 pt-6 border-t flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowOwnerLinkModal(false);
+                    setSelectedBusinessId(null);
+                  }}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                >
+                  إغلاق
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Ownership Actions */}
+      <BulkOwnershipActions
+        selectedBusinessIds={selectedRows}
+        onClearSelection={() => setSelectedRows([])}
+        onActionComplete={() => window.location.reload()}
+      />
     </div>
   );
 }
