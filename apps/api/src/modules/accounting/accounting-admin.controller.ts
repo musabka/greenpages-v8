@@ -26,7 +26,7 @@ import {
 @ApiTags('accounting-admin')
 @Controller('admin/accounting')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN, UserRole.ACCOUNTANT)
 @ApiBearerAuth()
 export class AccountingAdminController {
   constructor(
@@ -48,6 +48,31 @@ export class AccountingAdminController {
   @ApiOperation({ summary: 'إحصائيات النظام المحاسبي' })
   async getStats() {
     return this.accountingService.getStats();
+  }
+
+  @Get('dashboard-stats')
+  @ApiOperation({ summary: 'إحصائيات لوحة تحكم المحاسب' })
+  async getDashboardStats() {
+    const [journalEntries, invoices, periods, recentJournalEntries, recentInvoices] = await Promise.all([
+      this.accountingService.getJournalEntryStats(),
+      this.accountingService.getInvoiceStats(),
+      this.accountingService.getPeriodStats(),
+      this.accountingService.getJournalEntries({ limit: 5 }),
+      this.accountingService.getInvoices({ limit: 5 }),
+    ]);
+
+    return {
+      journalEntries,
+      invoices,
+      periods,
+      financialSummary: {
+        totalRevenue: 0, // سيتم حسابه لاحقاً
+        totalExpenses: 0,
+        netIncome: 0,
+      },
+      recentJournalEntries: recentJournalEntries.data || [],
+      recentInvoices: recentInvoices.data || [],
+    };
   }
 
   // ==========================================================================
@@ -124,17 +149,23 @@ export class AccountingAdminController {
   @ApiOperation({ summary: 'قائمة القيود المحاسبية' })
   @ApiQuery({ name: 'periodId', required: false })
   @ApiQuery({ name: 'status', required: false, enum: AccJournalStatus })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'offset', required: false })
   async getJournalEntries(
     @Query('periodId') periodId?: string,
     @Query('status') status?: AccJournalStatus,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
   ) {
     return this.accountingService.getJournalEntries({
       periodId,
       status,
+      dateFrom,
+      dateTo,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });

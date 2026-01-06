@@ -14,7 +14,7 @@ export default function NewUserPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'ADMIN' | 'SUPERVISOR' | 'GOVERNORATE_MANAGER' | 'AGENT' | 'BUSINESS' | 'USER'>('USER');
+  const [role, setRole] = useState<'ADMIN' | 'SUPERVISOR' | 'GOVERNORATE_MANAGER' | 'AGENT' | 'BUSINESS' | 'ACCOUNTANT' | 'USER'>('USER');
   const [isActive, setIsActive] = useState(true);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [password, setPassword] = useState('');
@@ -232,6 +232,7 @@ export default function NewUserPage() {
                   <option value="GOVERNORATE_MANAGER">مدير محافظة - يدير محافظات محددة</option>
                   <option value="AGENT">المندوب - جمع البيانات الميدانية</option>
                   <option value="BUSINESS">مالك نشاط - يدير نشاطه التجاري</option>
+                  <option value="ACCOUNTANT">محاسب - صلاحيات محاسبية</option>
                   <option value="USER">مستخدم - المستخدم العادي</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-2">
@@ -240,6 +241,7 @@ export default function NewUserPage() {
                   {role === 'GOVERNORATE_MANAGER' && 'يدير الأنشطة والمندوبين في محافظات محددة فقط'}
                   {role === 'AGENT' && 'مسؤول جمع البيانات الميدانية ويكسب عمولة على الاشتراكات'}
                   {role === 'BUSINESS' && 'يدير نشاطه التجاري وفروعه ومنتجاته'}
+                  {role === 'ACCOUNTANT' && 'يملك صلاحيات محاسبية للوحات المحاسب والتقارير'}
                   {role === 'USER' && 'يتصفح الموقع ويكتب التقييمات'}
                 </p>
               </div>

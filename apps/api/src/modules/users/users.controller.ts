@@ -56,6 +56,10 @@ export class UsersController {
   @ApiResponse({ status: 201, description: 'تم إنشاء المستخدم بنجاح' })
   @ApiResponse({ status: 400, description: 'بيانات غير صحيحة' })
   async create(@Body() createUserDto: CreateUserDto) {
+    // Normalize phone input (remove spaces) before validation/processing
+    if (createUserDto.phone) {
+      createUserDto.phone = createUserDto.phone.replace(/\s+/g, '');
+    }
     if (!createUserDto.phone || !createUserDto.phone.trim()) {
       throw new BadRequestException('رقم الهاتف مطلوب');
     }

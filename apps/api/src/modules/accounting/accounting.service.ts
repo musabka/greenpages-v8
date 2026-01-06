@@ -425,10 +425,23 @@ export class AccountingService {
     return entry;
   }
 
-  async getJournalEntries(query: { periodId?: string; status?: AccJournalStatus; limit?: number; offset?: number }) {
+  async getJournalEntries(query: { 
+    periodId?: string; 
+    status?: AccJournalStatus; 
+    dateFrom?: string; 
+    dateTo?: string; 
+    limit?: number; 
+    offset?: number 
+  }) {
     const where: Prisma.AccJournalEntryWhereInput = {};
     if (query.periodId) where.periodId = query.periodId;
     if (query.status) where.status = query.status;
+    if (query.dateFrom || query.dateTo) {
+      // Filter by occurrence date range
+      where.occurredAt = {};
+      if (query.dateFrom) where.occurredAt.gte = new Date(query.dateFrom);
+      if (query.dateTo) where.occurredAt.lte = new Date(query.dateTo);
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.accJournalEntry.findMany({
@@ -1349,4 +1362,57 @@ export class AccountingService {
 
     return updatedInvoice;
   }
+
+  // ==========================================================================
+  // DASHBOARD STATS
+  // ==========================================================================
+
+  async getJournalEntryStats() {
+    const [total, draft, posted, voidCount] = await Promise.all([
+      this.prisma.accJournalEntry.count(),
+      this.prisma.accJournalEntry.count({ where: { status: AccJournalStatus.DRAFT } }),
+      this.prisma.accJournalEntry.count({ where: { status: AccJournalStatus.POSTED } }),
+      this.prisma.accJournalEntry.count({ where: { status: AccJournalStatus.VOID } }),
+    ]);
+
+    return {
+      total,
+      draft,
+      posted,
+      void: voidCount,
+    };
+  }
+
+  async getInvoiceStats() {
+    const [total, draft, issued, paid, cancelled] = await Promise.all([
+      this.prisma.accInvoice.count(),
+      this.prisma.accInvoice.count({ where: { status: 'DRAFT' } }),
+      this.prisma.accInvoice.count({ where: { status: 'ISSUED' } }),
+      this.prisma.accInvoice.count({ where: { status: 'PAID' } }),
+      this.prisma.accInvoice.count({ where: { status: 'CANCELLED' } }),
+    ]);
+
+    return {
+      total,
+      draft,
+      issued,
+      paid,
+      cancelled,
+    };
+  }
+
+  async getPeriodStats() {
+    const [total, open, closed] = await Promise.all([
+      this.prisma.accPeriod.count(),
+      this.prisma.accPeriod.count({ where: { status: AccPeriodStatus.OPEN } }),
+      this.prisma.accPeriod.count({ where: { status: AccPeriodStatus.CLOSED } }),
+    ]);
+
+    return {
+      total,
+      open,
+      closed,
+    };
+  }
 }
+

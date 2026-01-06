@@ -70,7 +70,7 @@ export interface User {
   firstName: string;
   lastName: string;
   phone?: string;
-  role: 'ADMIN' | 'SUPERVISOR' | 'GOVERNORATE_MANAGER' | 'AGENT' | 'BUSINESS' | 'USER';
+  role: 'ADMIN' | 'SUPERVISOR' | 'GOVERNORATE_MANAGER' | 'AGENT' | 'BUSINESS' | 'ACCOUNTANT' | 'USER';
   status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING';
   isActive?: boolean;
   emailVerified?: boolean;
