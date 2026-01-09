@@ -1,48 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, Save, DollarSign, Loader2, User } from 'lucide-react';
-import { useAgentBalance, useSubmitPayment } from '@/lib/hooks/useFinancial';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { ArrowRight, DollarSign, Info, User } from 'lucide-react';
+import { useAgentBalance } from '@/lib/hooks/useFinancial';
 
 export default function SubmitPaymentPage() {
-  const router = useRouter();
   const { data: balance } = useAgentBalance();
-  const submitPayment = useSubmitPayment();
-
-  const [amount, setAmount] = useState('');
-  const [accountantId, setAccountantId] = useState('');
-  const [notes, setNotes] = useState('');
-
-  // جلب قائمة المحاسبين
-  const { data: accountants } = useQuery({
-    queryKey: ['accountants'],
-    queryFn: async () => {
-      const response = await api.get('/users?role=ACCOUNTANT');
-      return response.data;
-    },
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!amount || !accountantId) return;
-
-    try {
-      await submitPayment.mutateAsync({
-        amount: parseFloat(amount),
-        accountantId,
-        notes: notes || undefined,
-      });
-      router.push('/dashboard/financial');
-    } catch (error) {
-      console.error('Failed to submit payment:', error);
-    }
-  };
-
-  const canSubmit = amount && parseFloat(amount) > 0 && parseFloat(amount) <= (balance?.currentBalance || 0) && accountantId;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -56,8 +19,8 @@ export default function SubmitPaymentPage() {
             <ArrowRight className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">تسليم مبلغ للمحاسب</h1>
-            <p className="text-gray-500 mt-1">سجّل عملية تسليم الأموال المقبوضة</p>
+            <h1 className="text-2xl font-bold text-gray-900">تسليم المبالغ</h1>
+            <p className="text-gray-500 mt-1">معلومات حول تسليم المقبوضات</p>
           </div>
         </div>
 
@@ -65,7 +28,7 @@ export default function SubmitPaymentPage() {
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-100 mb-1">رصيدك الحالي</p>
+              <p className="text-sm text-blue-100 mb-1">رصيدك الحالي (في ذمتك)</p>
               <p className="text-3xl font-bold">
                 {balance?.currentBalance.toLocaleString() || 0}
               </p>
@@ -78,136 +41,74 @@ export default function SubmitPaymentPage() {
         </div>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm">
-        <div className="p-6 space-y-6">
-          {/* Amount */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              المبلغ المُسلّم *
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="أدخل المبلغ"
-                min="0"
-                max={balance?.currentBalance || 0}
-                step="1000"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                ل.س
-              </span>
-            </div>
-            {parseFloat(amount) > (balance?.currentBalance || 0) && (
-              <p className="text-sm text-red-600 mt-1">
-                المبلغ أكبر من رصيدك الحالي
-              </p>
-            )}
+      {/* Info Card */}
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl p-6 mb-6">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-amber-500 rounded-xl">
+            <Info className="w-6 h-6 text-white" />
           </div>
-
-          {/* Accountant */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              المحاسب المستلم *
-            </label>
-            <div className="relative">
-              <User className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                value={accountantId}
-                onChange={(e) => setAccountantId(e.target.value)}
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
-                required
-              >
-                <option value="">اختر المحاسب</option>
-                {accountants?.data?.map((accountant: any) => (
-                  <option key={accountant.id} value={accountant.id}>
-                    {accountant.firstName} {accountant.lastName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              ملاحظات (اختياري)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="أي ملاحظات إضافية..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            />
-          </div>
-
-          {/* Quick Amount Buttons */}
-          {balance && balance.currentBalance > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                اختصارات سريعة
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAmount((balance.currentBalance * 0.25).toString())}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
-                >
-                  25%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAmount((balance.currentBalance * 0.5).toString())}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
-                >
-                  50%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAmount((balance.currentBalance * 0.75).toString())}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
-                >
-                  75%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAmount(balance.currentBalance.toString())}
-                  className="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-medium transition-colors"
-                >
-                  الكل
-                </button>
+          <div className="flex-1">
+            <h3 className="font-bold text-amber-900 text-lg mb-3">آلية تسليم المبالغ</h3>
+            <div className="space-y-3 text-amber-800">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                  1
+                </div>
+                <p>
+                  قم بتسليم المبالغ النقدية المُحصّلة إلى <strong>مدير المحافظة</strong> عند العودة للمكتب.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                  2
+                </div>
+                <p>
+                  يقوم مدير المحافظة بتأكيد استلام المبلغ في النظام من خلال لوحة التحكم الخاصة به.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                  3
+                </div>
+                <p>
+                  بعد تأكيد الاستلام، يتم تحديث رصيدك تلقائياً وإضافة عمولتك المستحقة.
+                </p>
               </div>
             </div>
-          )}
+          </div>
         </div>
+      </div>
 
-        {/* Actions */}
-        <div className="px-6 py-4 bg-gray-50 border-t flex gap-3 justify-end">
-          <Link
-            href="/dashboard/financial"
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            إلغاء
-          </Link>
-          <button
-            type="submit"
-            disabled={!canSubmit || submitPayment.isPending}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {submitPayment.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            تسليم المبلغ
-          </button>
+      {/* Contact Manager Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <User className="w-5 h-5 text-green-600" />
+          تواصل مع مدير المحافظة
+        </h3>
+        
+        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+          <p className="text-gray-600 text-sm">
+            للاستفسار عن تسليم المبالغ أو أي مسائل مالية، تواصل مع مدير المحافظة التابع لك.
+          </p>
+          
+          <div className="pt-3 border-t border-gray-200">
+            <p className="text-xs text-gray-500 mb-2">ملاحظة:</p>
+            <p className="text-sm text-gray-700">
+              يُفضّل تسليم المبالغ المحصّلة في نهاية كل يوم عمل لتجنب تراكم الأموال النقدية.
+            </p>
+          </div>
         </div>
-      </form>
+      </div>
+
+      {/* Back Button */}
+      <div className="mt-6">
+        <Link
+          href="/dashboard/financial"
+          className="block w-full text-center py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+        >
+          العودة للحسابات المالية
+        </Link>
+      </div>
     </div>
   );
 }

@@ -36,29 +36,67 @@ export default function AgentFinancialPage() {
         <p className="text-gray-500">إدارة المقبوضات والمدفوعات</p>
       </div>
 
+      {/* How it works - Explanation */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-blue-600 rounded-xl">
+            <DollarSign className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold text-blue-900 mb-2">آلية عمل النظام المالي</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-800">
+              <div className="bg-white/60 rounded-lg p-3">
+                <div className="font-semibold mb-1">1. القبض النقدي</div>
+                <p className="text-xs text-blue-700">عند تسجيل نشاط أو تجديد باقة نقداً، يتم تسجيل المبلغ في رصيدك تلقائياً</p>
+              </div>
+              <div className="bg-white/60 rounded-lg p-3">
+                <div className="font-semibold mb-1">2. التسليم لمدير المحافظة</div>
+                <p className="text-xs text-blue-700">عند العودة للمكتب، تُسلّم الأموال لمدير المحافظة ويقوم هو بتأكيد الاستلام في النظام</p>
+              </div>
+              <div className="bg-white/60 rounded-lg p-3">
+                <div className="font-semibold mb-1">3. استلام العمولة</div>
+                <p className="text-xs text-blue-700">تُضاف عمولتك (نسبة مئوية محددة) إلى حسابك بعد اعتماد المدير للاستلام</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Alert if balance is high */}
-      {balance?.currentBalance > 5000000 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-          <div>
-            <h3 className="font-semibold text-yellow-900">تنبيه: رصيد مرتفع</h3>
-            <p className="text-sm text-yellow-700 mt-1">
-              لديك رصيد مستحق قدره {balance.currentBalance.toLocaleString()} ل.س. يرجى تسليمه للمحاسب في أقرب وقت.
+      {balance?.currentBalance > 1000000 && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5 flex items-start gap-4 shadow-lg">
+          <div className="p-3 bg-red-600 rounded-full">
+            <AlertCircle className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold text-red-900 text-lg mb-1">⚠️ تنبيه: أموال نقدية غير مُسلّمة</h3>
+            <p className="text-red-800 mb-3">
+              لديك <span className="font-bold text-xl">{balance.currentBalance.toLocaleString()}</span> ليرة سورية نقدية مُحصّلة ولم تُسلّم بعد.
             </p>
+            <div className="flex items-center gap-3">
+              <div className="bg-yellow-100 border border-yellow-300 px-4 py-2 rounded-lg">
+                <p className="text-sm text-yellow-800 font-medium">📋 قم بتسليم المبلغ لمدير المحافظة وسيتولى هو تأكيد الاستلام في النظام</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="bg-white rounded-xl shadow-sm p-6 border-2 border-red-200">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-500 mb-1">الرصيد الحالي</p>
-              <p className="text-2xl font-bold text-red-600">
+              <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                <HandCoins className="w-4 h-4 text-red-500" />
+                أموال نقدية بحوزتك
+              </p>
+              <p className="text-3xl font-bold text-red-600">
                 {balance?.currentBalance.toLocaleString() || 0}
               </p>
-              <p className="text-xs text-gray-500 mt-1">ليرة سورية</p>
+              <p className="text-xs text-red-600 mt-2 font-semibold">
+                ⚠️ يجب تسليمها مساءً
+              </p>
             </div>
             <div className="p-3 rounded-xl bg-red-100">
               <Wallet className="w-6 h-6 text-red-600" />
@@ -203,18 +241,34 @@ export default function AgentFinancialPage() {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link 
-          href="/dashboard/financial/submit-payment"
-          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl p-6 hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg"
+        <div 
+          className="bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl p-6 shadow-lg"
         >
           <div className="flex items-center gap-4">
             <div className="p-3 bg-white/20 rounded-lg">
               <DollarSign className="w-8 h-8" />
             </div>
             <div>
-              <h3 className="text-lg font-bold">تسليم مبلغ للمحاسب</h3>
-              <p className="text-sm text-blue-100 mt-1">
-                سجّل عملية تسليم الأموال المقبوضة
+              <h3 className="text-lg font-bold">تسليم المبالغ</h3>
+              <p className="text-sm text-amber-100 mt-1">
+                يتم تسليم الأموال لمدير المحافظة وهو يؤكد الاستلام
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Link 
+          href="/dashboard/financial/settlements"
+          className="bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl p-6 hover:from-green-700 hover:to-green-800 transition-all shadow-lg"
+        >
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/20 rounded-lg">
+              <DollarSign className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">التسويات المالية</h3>
+              <p className="text-sm text-green-100 mt-1">
+                سجل التسويات المالية المكتملة
               </p>
             </div>
           </div>

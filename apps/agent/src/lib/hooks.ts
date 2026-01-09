@@ -196,7 +196,7 @@ export function useMyReviews(page = 1, limit = 10, status?: string) {
 
 export function useCreateReview() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: reviewApi.create,
     onSuccess: (_, variables) => {
@@ -240,10 +240,28 @@ export function useCreateBusiness() {
   return useMutation({
     mutationFn: (data: Partial<Business>) => businessApi.create(data),
     onSuccess: () => {
+      // Invalidate multiple queries to ensure data refresh
       queryClient.invalidateQueries({ queryKey: ['businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['agent-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['agent-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['agent-commissions'] });
+      queryClient.invalidateQueries({ queryKey: ['agent-collections'] });
       toast.success('تم إضافة النشاط التجاري بنجاح');
     },
     onError: () => toast.error('فشل في إضافة النشاط التجاري'),
+  });
+}
+
+export function useUpdateBusiness() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Business> }) => businessApi.update(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['business', variables.id] });
+      toast.success('تم تحديث النشاط التجاري بنجاح');
+    },
+    onError: () => toast.error('فشل في تحديث النشاط التجاري'),
   });
 }
 

@@ -95,6 +95,12 @@ export class WalletPaymentDto {
   @IsNotEmpty()
   packageId: string;
 
+  @ApiPropertyOptional({ description: 'مدة الاشتراك بالأيام (للتجديد/التمديد)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  durationDays?: number;
+
   @ApiPropertyOptional({ description: 'ملاحظات' })
   @IsOptional()
   @IsString()

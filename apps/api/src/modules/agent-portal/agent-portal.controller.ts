@@ -19,7 +19,7 @@ import { UserRole, VisitStatus, VisitPurpose } from '@greenpages/database';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.AGENT)
 export class AgentPortalController {
-  constructor(private readonly agentPortalService: AgentPortalService) {}
+  constructor(private readonly agentPortalService: AgentPortalService) { }
 
   /**
    * لوحة التحكم الرئيسية
@@ -166,5 +166,65 @@ export class AgentPortalController {
     @Body() data: { phone?: string; avatar?: string },
   ) {
     return this.agentPortalService.updateProfile(req.user.id, data);
+  }
+
+  /**
+   * الفواتير التي أنشأها المندوب (من خلال الأنشطة التي سجلها)
+   */
+  @Get('invoices')
+  getMyInvoices(
+    @Request() req,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('businessId') businessId?: string,
+  ) {
+    return this.agentPortalService.getMyInvoices(req.user.id, {
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
+      status,
+      businessId,
+    });
+  }
+
+  /**
+   * الحصول على تفاصيل فاتورة واحدة
+   */
+  @Get('invoices/:id')
+  getInvoice(@Request() req, @Param('id') id: string) {
+    return this.agentPortalService.getInvoiceById(req.user.id, id);
+  }
+
+  /**
+   * تجديد/تمديد باقة لنشاط تجاري
+   */
+  @Post('businesses/:businessId/renew')
+  renewBusinessPackage(
+    @Request() req,
+    @Param('businessId') businessId: string,
+    @Body() data: {
+      packageId: string;
+      paymentMethod: 'CASH' | 'WALLET';
+      notes?: string;
+    },
+  ) {
+    return this.agentPortalService.renewBusinessPackage(req.user.id, businessId, data);
+  }
+
+  /**
+   * تسجيل نتيجة زيارة تجديد (قبول/رفض صاحب النشاط)
+   */
+  @Post('renewals/:renewalId/record-visit')
+  recordRenewalVisit(
+    @Request() req,
+    @Param('renewalId') renewalId: string,
+    @Body() data: {
+      outcome: 'ACCEPTED' | 'DECLINED' | 'POSTPONED' | 'NOT_AVAILABLE';
+      newPackageId?: string;
+      notes?: string;
+      nextVisitDate?: string;
+    },
+  ) {
+    return this.agentPortalService.recordRenewalVisit(req.user.id, renewalId, data);
   }
 }

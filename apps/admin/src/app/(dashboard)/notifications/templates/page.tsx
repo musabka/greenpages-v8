@@ -105,7 +105,7 @@ export default function NotificationTemplatesPage() {
 
   const loadTemplates = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/notifications/templates', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/templates`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -132,8 +132,8 @@ export default function NotificationTemplatesPage() {
     
     try {
       const url = editingTemplate
-        ? `http://localhost:3000/api/v1/notifications/templates/${editingTemplate.id}`
-        : 'http://localhost:3000/api/v1/notifications/templates';
+        ? `${process.env.NEXT_PUBLIC_API_URL}/notifications/templates/${editingTemplate.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/notifications/templates`;
       
       const method = editingTemplate ? 'PATCH' : 'POST';
 
@@ -180,7 +180,7 @@ export default function NotificationTemplatesPage() {
 
     setMessage(null);
     try {
-      const response = await fetch(`http://localhost:3000/api/v1/notifications/templates/${id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/templates/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,

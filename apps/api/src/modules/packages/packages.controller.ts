@@ -13,7 +13,7 @@ import { AssignPackageDto } from './dto/assign-package.dto';
 @ApiTags('packages')
 @Controller('packages')
 export class PackagesController {
-  constructor(private readonly packagesService: PackagesService) {}
+  constructor(private readonly packagesService: PackagesService) { }
 
   @Get()
   @Public()

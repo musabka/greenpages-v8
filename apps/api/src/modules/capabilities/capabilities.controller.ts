@@ -12,7 +12,7 @@ import { UserRole } from '@greenpages/database';
 @ApiTags('Capabilities - نظام القدرات')
 @Controller('capabilities')
 export class CapabilitiesController {
-  constructor(private readonly capabilitiesService: CapabilitiesService) {}
+  constructor(private readonly capabilitiesService: CapabilitiesService) { }
 
   @Post('link-owner')
   @UseGuards(JwtAuthGuard, RolesGuard)

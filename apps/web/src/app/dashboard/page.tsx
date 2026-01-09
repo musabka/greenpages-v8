@@ -3,568 +3,320 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertCircle,
-  ArrowUpRight,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  MessageSquare,
-  Star,
   Building2,
-  DollarSign,
-  Eye,
+  Wallet as WalletIcon,
+  MessageSquare,
   TrendingUp,
-  FileText,
-  CreditCard,
+  Eye,
+  Star,
   User,
-  Wallet,
+  FileText,
+  Receipt,
 } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { WalletCard } from './components/WalletCard';
+import { BusinessStatsCard } from './components/BusinessStatsCard';
+import { AlertsCard } from './components/AlertsCard';
+import { PackageInfoCard } from './components/PackageInfoCard';
 
-type Review = {
-  id: string;
-  rating: number;
-  comment?: string;
-  status?: string;
-  createdAt?: string;
-};
 
-type BusinessCapability = {
-  businessId: string;
-  role: string;
-  business: {
-    id: string;
-    nameAr: string;
-    nameEn?: string;
-    slug: string;
-    logo?: string;
-    status: string;
-  };
-};
 
-type BusinessStats = {
-  viewsToday?: number;
-  viewsTotal?: number;
-};
-
-type Subscription = {
-  status?: string;
-  packageName?: string;
-  expiresAt?: string | null;
-  daysRemaining?: number | null;
-};
-
-type FinancialSummary = {
-  totalSpent: number;
-  paymentsCount: number;
-  currentPackage?: {
-    name: string;
-    daysRemaining?: number | null;
-  };
-};
-
-const statusStyles: Record<string, string> = {
-  APPROVED: 'bg-green-100 text-green-700',
-  PENDING: 'bg-amber-100 text-amber-700',
-  REJECTED: 'bg-red-100 text-red-700',
-};
-
-const SkeletonCard = () => (
-  <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm animate-pulse">
-    <div className="h-4 w-24 bg-gray-200 rounded" />
-    <div className="mt-3 h-7 w-16 bg-gray-200 rounded" />
-    <div className="mt-2 h-4 w-20 bg-gray-200 rounded" />
-  </div>
-);
-
-const SkeletonList = () => (
-  <div className="space-y-3">
-    {Array.from({ length: 3 }).map((_, idx) => (
-      <div key={idx} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm animate-pulse">
-        <div className="h-4 w-32 bg-gray-200 rounded" />
-        <div className="mt-2 h-3 w-24 bg-gray-200 rounded" />
-      </div>
-    ))}
-  </div>
-);
 
 export default function UserDashboardPage() {
-  // Fetch wallet balance
-  const walletQuery = useQuery({
-    queryKey: ['wallet-balance'],
+  // Fetch dashboard summary (all-in-one)
+  const dashboardQuery = useQuery({
+    queryKey: ['user-dashboard-summary'],
     queryFn: async () => {
-      const response = await api.get('/wallet/balance');
+      const response = await api.get('/user/dashboard/summary');
       return response.data;
     },
     staleTime: 30_000,
     retry: 1,
   });
 
-  // Fetch user's business capabilities
-  const capabilitiesQuery = useQuery({
-    queryKey: ['my-capabilities'],
-    queryFn: async () => {
-      const response = await api.get('/capabilities/my-capabilities');
-      return response.data.data as BusinessCapability[];
-    },
-    staleTime: 60_000,
-    retry: 1,
-  });
-
-  // Fetch user reviews
-  const reviewsQuery = useQuery({
-    queryKey: ['me', 'reviews'],
-    queryFn: async () => (await api.get('/reviews/me')).data as Review[],
-    staleTime: 60_000,
-    retry: 1,
-  });
-
-  const reviews = reviewsQuery.data ?? [];
-  const reviewCount = reviews.length;
-  const reviewAverage = reviewCount
-    ? reviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) / reviewCount
-    : 0;
-
-  // Check if user has business capabilities
-  const capabilities = capabilitiesQuery.data ?? [];
-  const hasBusinessCapabilities = capabilities.length > 0;
-  const primaryBusiness = capabilities[0]; // الأولوية للنشاط الأول
-
-  // Try to fetch business stats (only if user has capabilities)
+  // Fetch business stats if user has businesses
   const businessStatsQuery = useQuery({
-    queryKey: ['business-portal-stats', primaryBusiness?.businessId],
-    queryFn: async () => (await api.get('/business-portal/dashboard')).data as BusinessStats,
-    staleTime: 60_000,
-    retry: 1,
-    throwOnError: false,
-    enabled: !!primaryBusiness,
-  });
-
-  // Try to fetch business subscription
-  const businessSubscriptionQuery = useQuery({
-    queryKey: ['business-portal-subscription', primaryBusiness?.businessId],
-    queryFn: async () => (await api.get('/business-portal/subscription')).data as Subscription,
-    staleTime: 60_000,
-    retry: 1,
-    throwOnError: false,
-    enabled: !!primaryBusiness,
-  });
-
-  // Try to fetch business financial data
-  const businessFinancialQuery = useQuery({
-    queryKey: ['business-portal-financial', primaryBusiness?.businessId],
+    queryKey: ['user-business-stats'],
     queryFn: async () => {
-      const response = await api.get('/business-portal/financial');
-      return response.data.summary as FinancialSummary;
+      const response = await api.get('/user/dashboard/business-stats');
+      return response.data;
     },
     staleTime: 60_000,
     retry: 1,
-    throwOnError: false,
-    enabled: !!primaryBusiness,
+    enabled: !!dashboardQuery.data?.hasBusinessAccess,
   });
 
-  const renderStatus = (status?: string) => {
-    if (!status) return <span className="text-xs text-gray-500">غير محدد</span>;
-    const style = statusStyles[status] || 'bg-gray-100 text-gray-700';
+  // Fetch packages details if user has businesses
+  const packagesQuery = useQuery({
+    queryKey: ['user-packages-details'],
+    queryFn: async () => {
+      const response = await api.get('/user/dashboard/packages-details');
+      return response.data;
+    },
+    staleTime: 60_000,
+    retry: 1,
+    enabled: !!dashboardQuery.data?.hasBusinessAccess,
+  });
+
+  const data = dashboardQuery.data;
+  const hasBusinessAccess = data?.hasBusinessAccess || false;
+  const user = data?.user;
+  const wallet = data?.wallet;
+  const capabilities = data?.businessCapabilities || [];
+
+  // Loading state
+  if (dashboardQuery.isLoading) {
     return (
-      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${style}`}>
-        {status}
-      </span>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">جاري التحميل...</p>
+        </div>
+      </div>
     );
-  };
+  }
+
+  // Error state
+  if (dashboardQuery.isError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl p-8 shadow-lg max-w-md">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 text-center mb-2">
+            خطأ في تحميل البيانات
+          </h2>
+          <p className="text-gray-600 text-center mb-4">
+            حدث خطأ أثناء تحميل لوحة التحكم. يرجى المحاولة مرة أخرى.
+          </p>
+          <button
+            onClick={() => dashboardQuery.refetch()}
+            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">لوحة التحكم</h1>
-            <p className="text-gray-500 mt-1">
-              {hasBusinessCapabilities ? 'إدارة أنشطتك التجارية وحسابك الشخصي' : 'إدارة حسابك ومراجعاتك'}
-            </p>
-          </div>
-          <div className="flex gap-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                مرحباً، {user?.firstName} {user?.lastName}
+              </h1>
+              <div className="flex items-center gap-2 mt-2 text-gray-600">
+                {user?.governorate && (
+                  <>
+                    <span>{user.governorate.nameAr}</span>
+                    {user.city && (
+                      <>
+                        <span>•</span>
+                        <span>{user.city.nameAr}</span>
+                      </>
+                    )}
+                    {user.district && (
+                      <>
+                        <span>•</span>
+                        <span>{user.district.nameAr}</span>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Action - تعديل الملف الشخصي */}
             <Link
               href="/profile"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
             >
               <User className="w-4 h-4" />
-              <span className="text-sm font-medium">تعديل الملف الشخصي</span>
+              <span className="text-sm font-medium">تعديل الملف</span>
             </Link>
-            {hasBusinessCapabilities && (
-              <Link
-                href="/dashboard/my-businesses"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-white hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: 'var(--color-primary, #16a34a)' }}
-              >
-                <Building2 className="w-4 h-4" />
-                <span className="text-sm font-medium">إدارة الأنشطة</span>
-              </Link>
-            )}
           </div>
         </div>
 
-        {/* Business Owner Section */}
-        {hasBusinessCapabilities && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
-              <div className="p-2 rounded-lg bg-green-100">
-                <Building2 className="w-5 h-5 text-green-600" />
+        {/* Alerts Section */}
+        {hasBusinessAccess && capabilities.length > 0 && (
+          <AlertsCard capabilities={capabilities} />
+        )}
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Wallet Card */}
+          <WalletCard wallet={wallet} hasBusinessAccess={hasBusinessAccess} />
+
+          {/* Stats Cards - Only if user has businesses */}
+          {hasBusinessAccess && (
+            <>
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">
+                      مشاهدات اليوم
+                    </p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">
+                      {businessStatsQuery.data?.viewsToday || 0}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-blue-50">
+                    <Eye className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">لجميع أنشطتك التجارية</p>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">إحصائيات الأنشطة التجارية</h2>
-            </div>
 
-            {/* Business Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {businessStatsQuery.isLoading ? (
-                <>
-                  <SkeletonCard />
-                  <SkeletonCard />
-                  <SkeletonCard />
-                  <SkeletonCard />
-                </>
-              ) : (
-                <>
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-500 font-medium">مشاهدات اليوم</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">
-                          {(businessStatsQuery.data?.viewsToday || 0).toLocaleString('ar-EG')}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">عدد الزيارات اليوم</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-blue-50">
-                        <Eye className="w-6 h-6 text-blue-600" />
-                      </div>
-                    </div>
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">
+                      إجمالي المشاهدات
+                    </p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">
+                      {businessStatsQuery.data?.viewsTotal || 0}
+                    </p>
                   </div>
+                  <div className="p-3 rounded-lg bg-green-50">
+                    <TrendingUp className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">منذ إنشاء الأنشطة</p>
+              </div>
+            </>
+          )}
 
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-500 font-medium">إجمالي المشاهدات</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">
-                          {(businessStatsQuery.data?.viewsTotal || 0).toLocaleString('ar-EG')}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">منذ إنشاء النشاط</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-green-50">
-                        <TrendingUp className="w-6 h-6 text-green-600" />
-                      </div>
-                    </div>
+          {/* Reviews Card - if user doesn't have businesses */}
+          {!hasBusinessAccess && (
+            <>
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">
+                      عدد مراجعاتي
+                    </p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">
+                      {data?.reviews?.count || 0}
+                    </p>
                   </div>
+                  <div className="p-3 rounded-lg bg-yellow-50">
+                    <MessageSquare className="w-6 h-6 text-yellow-600" />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">مراجعاتك على الأنشطة</p>
+              </div>
 
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-500 font-medium">إجمالي المصروفات</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">
-                          {(businessFinancialQuery.data?.totalSpent || 0).toLocaleString('ar-EG')}
-                          <span className="text-base text-gray-500 mr-1">ل.س</span>
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">الاشتراكات والإعلانات</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-purple-50">
-                        <DollarSign className="w-6 h-6 text-purple-600" />
-                      </div>
-                    </div>
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">
+                      متوسط التقييم
+                    </p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">
+                      {Number(data?.reviews?.averageRating || 0).toFixed(1)}
+                      <span className="text-base text-gray-400 mr-1">/5</span>
+                    </p>
                   </div>
-
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-500 font-medium">عدد المدفوعات</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-2">
-                          {businessFinancialQuery.data?.paymentsCount || 0}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">العمليات المالية</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-amber-50">
-                        <FileText className="w-6 h-6 text-amber-600" />
-                      </div>
-                    </div>
+                  <div className="p-3 rounded-lg bg-orange-50">
+                    <Star className="w-6 h-6 text-orange-600" />
                   </div>
-                </>
-              )}
-            </div>
-
-            {/* Business Subscription */}
-            {!businessSubscriptionQuery.isLoading && businessSubscriptionQuery.data && (
-              <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-cyan-50 to-blue-50 p-6 shadow-sm">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="p-4 rounded-xl bg-white shadow-sm">
-                      <CreditCard className="w-6 h-6 text-cyan-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 font-medium">الباقة الحالية</p>
-                      <p className="text-xl font-bold text-gray-900 mt-1">
-                        {businessSubscriptionQuery.data.packageName || 'غير متاح'}
-                      </p>
-                      {businessSubscriptionQuery.data.daysRemaining != null && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          {businessSubscriptionQuery.data.daysRemaining > 0
-                            ? `${businessSubscriptionQuery.data.daysRemaining} يوم متبقي`
-                            : 'منتهية'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <Link
-                    href="/dashboard/my-businesses"
-                    className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700 transition-all shadow-md"
-                  >
-                    <Building2 className="w-4 h-4" />
-                    <span className="text-sm font-medium">إدارة الاشتراكات</span>
-                  </Link>
+                </div>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`w-4 h-4 ${
+                        star <= Math.round(data?.reviews?.averageRating || 0)
+                          ? 'text-yellow-400 fill-yellow-400'
+                          : 'text-gray-300'
+                      }`}
+                    />
+                  ))}
                 </div>
               </div>
-            )}
+            </>
+          )}
+        </div>
+
+        {/* Business Capabilities Section */}
+        {hasBusinessAccess && capabilities.length > 0 && (
+          <BusinessStatsCard capabilities={capabilities} />
+        )}
+
+        {/* Packages Information Section - for business owners */}
+        {hasBusinessAccess && packagesQuery.data && packagesQuery.data.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">باقات أنشطتي التجارية</h2>
+              <Link
+                href="/dashboard/packages"
+                className="text-sm text-green-600 hover:text-green-700 font-medium"
+              >
+                عرض جميع الباقات المتاحة
+              </Link>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {packagesQuery.data.map((packageDetail: any) => (
+                <PackageInfoCard
+                  key={packageDetail.business.id}
+                  packageDetails={packageDetail}
+                />
+              ))}
+            </div>
           </div>
         )}
-        {/* Wallet Section */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
-            <div className="p-2 rounded-lg bg-emerald-100">
-              <Wallet className="w-5 h-5 text-emerald-600" />
+
+        {/* Reviews Section - for all users */}
+        {data?.reviews && data.reviews.count > 0 && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">مراجعاتي</h2>
+              <Link
+                href="/my-reviews"
+                className="text-sm text-green-600 hover:text-green-700 font-medium"
+              >
+                عرض الكل ({data.reviews.count})
+              </Link>
             </div>
-            <h2 className="text-xl font-bold text-gray-900">محفظتي</h2>
+            <p className="text-gray-600 text-sm">
+              لديك {data.reviews.count} مراجعة بمتوسط {Number(data.reviews.averageRating || 0).toFixed(1)} نجوم
+            </p>
           </div>
+        )}
 
-          {/* Wallet Balance */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {walletQuery.isLoading ? (
-              <>
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
-              </>
-            ) : walletQuery.isError ? (
-              <div className="col-span-3 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-yellow-800">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="text-sm">المحفظة غير متاحة حالياً</span>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-emerald-50 to-green-50 p-6 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-emerald-700 font-medium">الرصيد المتاح</p>
-                      <p className="text-3xl font-bold text-emerald-900 mt-2">
-                        {(walletQuery.data?.availableBalance || 0).toLocaleString('ar-SY')}
-                      </p>
-                      <p className="text-xs text-emerald-600 mt-1">ليرة سورية</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-white shadow-sm">
-                      <Wallet className="w-6 h-6 text-emerald-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-500 font-medium">إجمالي الإيداعات</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-2">
-                        {(walletQuery.data?.totalDeposits || 0).toLocaleString('ar-SY')}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">ليرة سورية</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-blue-50">
-                      <TrendingUp className="w-6 h-6 text-blue-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-500 font-medium">إجمالي المصروفات</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-2">
-                        {(walletQuery.data?.totalSpent || 0).toLocaleString('ar-SY')}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">ليرة سورية</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-orange-50">
-                      <CreditCard className="w-6 h-6 text-orange-600" />
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Wallet Quick Actions */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Link
-              href="/dashboard/wallet"
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-white border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all shadow-sm"
-            >
-              <Wallet className="w-5 h-5 text-emerald-600" />
-              <span className="text-sm font-medium text-gray-700">المحفظة</span>
-            </Link>
-            <Link
-              href="/dashboard/wallet/top-up"
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-white border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all shadow-sm"
-            >
-              <ArrowUpCircle className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium text-gray-700">شحن</span>
-            </Link>
-            <Link
-              href="/dashboard/wallet/withdraw"
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-white border border-gray-200 hover:border-orange-500 hover:bg-orange-50 transition-all shadow-sm"
-            >
-              <ArrowDownCircle className="w-5 h-5 text-orange-600" />
-              <span className="text-sm font-medium text-gray-700">سحب</span>
-            </Link>
-            <Link
-              href="/dashboard/wallet/pay"
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-white border border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all shadow-sm"
-            >
-              <CreditCard className="w-5 h-5 text-purple-600" />
-              <span className="text-sm font-medium text-gray-700">دفع</span>
-            </Link>
-          </div>
-        </div>
-        {/* User Reviews Section */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
-            <div className="p-2 rounded-lg bg-yellow-100">
-              <MessageSquare className="w-5 h-5 text-yellow-600" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">مراجعاتي</h2>
-          </div>
-
-          {/* Reviews Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {reviewsQuery.isLoading ? (
-              <>
-                <SkeletonCard />
-                <SkeletonCard />
-              </>
-            ) : (
-              <>
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-500 font-medium">عدد المراجعات</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-2">{reviewCount}</p>
-                      <p className="text-xs text-gray-400 mt-1">تقييماتك على الأنشطة</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-blue-50">
-                      <MessageSquare className="w-6 h-6 text-blue-600" />
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-500 font-medium">متوسط التقييم</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-2">
-                        {reviewAverage.toFixed(1)} 
-                        <span className="text-base text-gray-400 mr-1">/5</span>
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">متوسط تقييماتك</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-yellow-50">
-                      <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Reviews List */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
+        {/* Quick Links Section - فواتيري والمزيد */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* رابط الفواتير */}
+          <Link
+            href="/dashboard/invoices"
+            className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:border-green-300 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">آخر المراجعات</h3>
-                <p className="text-sm text-gray-500 mt-1">حالة وتفاصيل مراجعاتك</p>
-              </div>
-              {reviewCount > 0 && (
-                <Link 
-                  href="/my-reviews" 
-                  className="text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
-                >
-                  عرض الكل ({reviewCount})
-                </Link>
-              )}
-            </div>
-
-            {reviewsQuery.isLoading && <SkeletonList />}
-
-            {reviewsQuery.isError && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-red-700">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="text-sm">تعذر تحميل المراجعات</span>
-                </div>
-                <button
-                  onClick={() => reviewsQuery.refetch()}
-                  className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 transition-colors"
-                >
-                  إعادة المحاولة
-                </button>
-              </div>
-            )}
-
-            {!reviewsQuery.isLoading && !reviewsQuery.isError && reviews.length === 0 && (
-              <div className="text-center py-12">
-                <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">لم تقم بكتابة أي مراجعات بعد</p>
-                <Link 
-                  href="/search"
-                  className="inline-block mt-4 text-sm text-primary-600 hover:text-primary-700 font-medium"
-                >
-                  ابحث عن الأنشطة التجارية
-                </Link>
-              </div>
-            )}
-
-            {!reviewsQuery.isLoading && !reviewsQuery.isError && reviews.length > 0 && (
-              <div className="space-y-3">
-                {reviews.slice(0, 5).map((review) => (
-                  <div
-                    key={review.id}
-                    className="rounded-lg border border-gray-100 bg-gray-50 p-4 hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          {[...Array(5)].map((_, i) => (
-                            <Star 
-                              key={i} 
-                              className={`w-4 h-4 ${i < review.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-sm font-semibold text-gray-900">{review.rating}.0</span>
-                      </div>
-                      {renderStatus(review.status)}
-                    </div>
-                    {review.comment && (
-                      <p className="text-sm text-gray-700 mt-2 line-clamp-2">{review.comment}</p>
-                    )}
-                    {review.createdAt && (
-                      <p className="text-xs text-gray-500 mt-3">
-                        {new Date(review.createdAt).toLocaleDateString('ar-EG', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
-                      </p>
-                    )}
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
+                    <Receipt className="w-5 h-5 text-blue-600" />
                   </div>
-                ))}
+                  <h3 className="text-lg font-bold text-gray-900">فواتيري</h3>
+                </div>
+                <p className="text-sm text-gray-500">
+                  عرض وتنزيل فواتير الاشتراكات والمدفوعات
+                </p>
               </div>
-            )}
-          </div>
+              <FileText className="w-8 h-8 text-gray-300 group-hover:text-green-500 transition-colors" />
+            </div>
+          </Link>
         </div>
+
+
       </div>
     </div>
   );
 }
+

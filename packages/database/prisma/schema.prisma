@@ -49,6 +49,7 @@ model User {
   paidPayments               CommissionPayment[]           @relation("PaymentPayer")
   governorateManagers        GovernorateManager[]
   receivedManagerSettlements ManagerSettlement[]           @relation("ManagerSettlementReceiver")
+  receivedAdminSettlements   ManagerFinancialSettlement[]  @relation("AdminReceivedSettlements")
   notificationPreference     NotificationPreference?
   sentNotifications          Notification[]                @relation("SentNotifications")
   notifications              Notification[]
@@ -969,6 +970,8 @@ model GovernorateManager {
   governorate           Governorate         @relation(fields: [governorateId], references: [id], onDelete: Cascade)
   user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   settlements           ManagerSettlement[]
+  agentFinSettlements   AgentFinancialSettlement[] @relation("ManagerFinSettlements")
+  adminFinSettlements   ManagerFinancialSettlement[] @relation("ManagerToAdminSettlements")
 
   @@unique([userId, governorateId])
   @@index([userId])
@@ -1001,6 +1004,7 @@ model AgentProfile {
   settlements        AgentSettlement[]
   visits             AgentVisit[]
   commissionPayments CommissionPayment[]
+  financialSettlements AgentFinancialSettlement[] @relation("AgentFinSettlements")
 
   @@index([userId])
   @@index([managerId])
@@ -1165,6 +1169,138 @@ model ManagerSettlement {
   @@index([periodEnd])
   @@index([receivedByUserId])
   @@map("manager_settlements")
+}
+
+// ============================================================================
+// التسويات المالية الشاملة - Comprehensive Financial Settlements
+// ============================================================================
+
+// تسوية مالية للمندوب مع مدير المحافظة
+model AgentFinancialSettlement {
+  id                    String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  settlementNumber      String                @unique @map("settlement_number") // GPAGENT-2026-0000001
+  agentProfileId        String                @map("agent_profile_id") @db.Uuid
+  governorateManagerId  String                @map("governorate_manager_id") @db.Uuid
+  
+  // المبالغ عند التسوية
+  totalCollected        Decimal               @map("total_collected") @db.Decimal(14, 2) // إجمالي المقبوضات
+  cashOnHand            Decimal               @map("cash_on_hand") @db.Decimal(14, 2) // النقد بحوزة المندوب
+  previouslyDelivered   Decimal               @map("previously_delivered") @db.Decimal(14, 2) // المسلم سابقاً
+  totalCommissions      Decimal               @map("total_commissions") @db.Decimal(14, 2) // إجمالي العمولات المستحقة
+  
+  // الأموال المسلمة في هذه التسوية
+  amountDelivered       Decimal               @map("amount_delivered") @db.Decimal(14, 2)
+  // العمولات المدفوعة في هذه التسوية  
+  commissionsPaid       Decimal               @map("commissions_paid") @db.Decimal(14, 2)
+  
+  // معلومات التحصيلات
+  collectionIds         String[]              @map("collection_ids") @db.Uuid
+  collectionsCount      Int                   @map("collections_count")
+  
+  // معلومات العمولات
+  commissionIds         String[]              @map("commission_ids") @db.Uuid
+  commissionsCount      Int                   @map("commissions_count")
+  
+  // الحالة والتواريخ
+  status                FinSettlementStatus   @default(DRAFT)
+  createdAt             DateTime              @default(now()) @map("created_at")
+  confirmedAt           DateTime?             @map("confirmed_at")
+  confirmedByAgentAt    DateTime?             @map("confirmed_by_agent_at")
+  confirmedByManagerAt  DateTime?             @map("confirmed_by_manager_at")
+  
+  // بيانات الأطراف للأرشفة
+  agentName             String                @map("agent_name")
+  agentPhone            String                @map("agent_phone")
+  managerName           String                @map("manager_name")
+  managerPhone          String                @map("manager_phone")
+  governorateName       String                @map("governorate_name")
+  
+  // ملاحظات ومرفقات
+  notes                 String?
+  agentSignature        String?               @map("agent_signature") // توقيع المندوب (base64 أو URL)
+  managerSignature      String?               @map("manager_signature") // توقيع المدير
+  attachments           String[]
+  
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+  
+  agentProfile          AgentProfile          @relation("AgentFinSettlements", fields: [agentProfileId], references: [id], onDelete: Cascade)
+  governorateManager    GovernorateManager    @relation("ManagerFinSettlements", fields: [governorateManagerId], references: [id], onDelete: Cascade)
+
+  @@index([agentProfileId])
+  @@index([governorateManagerId])
+  @@index([settlementNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@map("agent_financial_settlements")
+}
+
+// تسوية مالية لمدير المحافظة مع الشركة (الصفحات الخضراء)
+model ManagerFinancialSettlement {
+  id                    String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  settlementNumber      String                @unique @map("settlement_number") // GPMANAGER-2026-0000001
+  governorateManagerId  String                @map("governorate_manager_id") @db.Uuid
+  receivedByUserId      String?               @map("received_by_user_id") @db.Uuid
+  
+  // المبالغ عند التسوية
+  totalRevenue          Decimal               @map("total_revenue") @db.Decimal(14, 2) // إجمالي الإيرادات
+  agentsCommissions     Decimal               @map("agents_commissions") @db.Decimal(14, 2) // عمولات المندوبين
+  managerNetAmount      Decimal               @map("manager_net_amount") @db.Decimal(14, 2) // صافي المدير
+  companyShareRate      Decimal               @map("company_share_rate") @db.Decimal(5, 2) // نسبة الشركة
+  companyShareAmount    Decimal               @map("company_share_amount") @db.Decimal(14, 2) // حصة الشركة
+  managerProfit         Decimal               @map("manager_profit") @db.Decimal(14, 2) // ربح المدير
+  
+  // المبلغ المسلم للشركة
+  amountDelivered       Decimal               @map("amount_delivered") @db.Decimal(14, 2)
+  
+  // الفترة
+  periodStart           DateTime              @map("period_start")
+  periodEnd             DateTime              @map("period_end")
+  
+  // تسويات المندوبين المرتبطة
+  agentSettlementIds    String[]              @map("agent_settlement_ids") @db.Uuid
+  agentSettlementsCount Int                   @map("agent_settlements_count")
+  
+  // الحالة والتواريخ
+  status                FinSettlementStatus   @default(DRAFT)
+  createdAt             DateTime              @default(now()) @map("created_at")
+  confirmedAt           DateTime?             @map("confirmed_at")
+  confirmedByManagerAt  DateTime?             @map("confirmed_by_manager_at")
+  confirmedByAdminAt    DateTime?             @map("confirmed_by_admin_at")
+  
+  // بيانات الأطراف للأرشفة
+  managerName           String                @map("manager_name")
+  managerPhone          String                @map("manager_phone")
+  governorateName       String                @map("governorate_name")
+  receivedByName        String?               @map("received_by_name")
+  
+  // ملاحظات ومرفقات
+  notes                 String?
+  managerSignature      String?               @map("manager_signature")
+  adminSignature        String?               @map("admin_signature")
+  attachments           String[]
+  
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+  
+  governorateManager    GovernorateManager    @relation("ManagerToAdminSettlements", fields: [governorateManagerId], references: [id], onDelete: Cascade)
+  receivedBy            User?                 @relation("AdminReceivedSettlements", fields: [receivedByUserId], references: [id])
+
+  @@index([governorateManagerId])
+  @@index([receivedByUserId])
+  @@index([settlementNumber])
+  @@index([status])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@index([createdAt])
+  @@map("manager_financial_settlements")
+}
+
+enum FinSettlementStatus {
+  DRAFT             // مسودة
+  PENDING_AGENT     // بانتظار تأكيد المندوب
+  PENDING_MANAGER   // بانتظار تأكيد المدير  
+  PENDING_ADMIN     // بانتظار تأكيد المدير العام
+  CONFIRMED         // مؤكدة
+  CANCELLED         // ملغاة
 }
 
 model CommissionPayment {

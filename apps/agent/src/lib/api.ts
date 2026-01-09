@@ -229,7 +229,7 @@ export interface BusinessProduct {
 
 export type PackageStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
-export type FeatureKey = 
+export type FeatureKey =
   | 'AD_ALLOWED'
   | 'SHOW_DESCRIPTION'
   | 'SHOW_GALLERY'
@@ -246,7 +246,7 @@ export type FeatureKey =
   | 'SHOW_MAP'
   | 'SHOW_ADDRESS';
 
-export type LimitKey = 
+export type LimitKey =
   | 'MAX_BRANCHES'
   | 'MAX_PERSONS'
   | 'MAX_ADS'
@@ -314,10 +314,10 @@ export interface Business {
   slug: string;
   descriptionAr?: string;
   descriptionEn?: string;
-  shortDescriptionAr?: string;
-  shortDescriptionEn?: string;
+  shortDescAr?: string;
+  shortDescEn?: string;
   logo?: string;
-  coverImage?: string;
+  cover?: string;
   addressAr?: string;
   addressEn?: string;
   governorateId: string;
@@ -348,6 +348,21 @@ export interface Business {
   media?: BusinessMedia[];
   persons?: BusinessPerson[];
   products?: BusinessProduct[];
+  categories?: { categoryId: string; isPrimary: boolean; category?: Category }[];
+  owner?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+    email?: string;
+    phone?: string;
+    avatar?: string;
+  };
+  package?: BusinessPackage;
+  _count?: {
+    reviews: number;
+    branches: number;
+  };
   tags: string[];
   metaTitleAr?: string;
   metaTitleEn?: string;
@@ -451,29 +466,29 @@ export interface BusinessSearchParams {
 export const businessApi = {
   getAll: (params?: BusinessSearchParams) =>
     api.get<PaginatedResponse<Business>>('/businesses', { params }),
-  
+
   getBySlug: (slug: string) =>
     api.get<Business>(`/businesses/slug/${slug}`),
-  
+
   getById: (id: string) =>
     api.get<Business>(`/businesses/${id}`),
 
   create: (data: Partial<Business>) => api.post<Business>('/businesses', data),
 
   update: (id: string, data: Partial<Business>) => api.put<Business>(`/businesses/${id}`, data),
-  
+
   getFeatured: (limit = 10) =>
     api.get<Business[]>('/businesses/featured', { params: { limit } }),
-  
+
   getByCategory: (categoryId: string, params?: BusinessSearchParams) =>
     api.get<PaginatedResponse<Business>>('/businesses', { params: { ...params, categoryId } }),
-  
+
   getNearby: (lat: number, lng: number, radius = 10) =>
     api.get<Business[]>('/businesses/nearby', { params: { lat, lng, radius } }),
-  
+
   search: (query: string, params?: BusinessSearchParams) =>
     api.get<PaginatedResponse<Business>>('/businesses/search', { params: { ...params, q: query } }),
-  
+
   incrementViews: (id: string) =>
     api.post(`/businesses/${id}/view`),
 };
@@ -485,13 +500,13 @@ export const categoryApi = {
     }
     return api.get<Category[]>('/categories', { params });
   },
-  
+
   getBySlug: (slug: string) =>
     api.get<Category>(`/categories/slug/${slug}`),
-  
+
   getFeatured: () =>
     api.get<Category[]>('/categories/featured'),
-  
+
   getParents: () =>
     api.get<Category[]>('/categories/parents'),
 };
@@ -499,7 +514,7 @@ export const categoryApi = {
 export const governorateApi = {
   getAll: (params?: { limit?: number }) =>
     api.get<Governorate[]>('/governorates', { params }),
-  
+
   getBySlug: (slug: string) =>
     api.get<Governorate>(`/governorates/slug/${slug}`),
 };
@@ -507,7 +522,7 @@ export const governorateApi = {
 export const cityApi = {
   getAll: (governorateId?: string) =>
     api.get<City[]>('/cities', { params: { governorateId } }),
-  
+
   getBySlug: (slug: string) =>
     api.get<City>(`/cities/slug/${slug}`),
 };
@@ -515,7 +530,7 @@ export const cityApi = {
 export const districtApi = {
   getAll: (cityId?: string) =>
     api.get<District[]>('/districts', { params: { cityId } }),
-  
+
   getBySlug: (slug: string) =>
     api.get<District>(`/districts/slug/${slug}`),
 };
@@ -526,7 +541,7 @@ export const reviewApi = {
 
   getMine: (page = 1, limit = 10, status?: string) =>
     api.get<PaginatedResponse<Review>>('/reviews/me', { params: { page, limit, status } }),
-  
+
   create: ({ businessSlug: _slug, ...payload }: { businessId: string; businessSlug?: string; rating: number; titleAr?: string; contentAr?: string; pros?: string[]; cons?: string[] }) =>
     api.post<Review>('/reviews', payload),
 };
@@ -534,10 +549,10 @@ export const reviewApi = {
 export const adApi = {
   getByPosition: (position: string) =>
     api.get<Ad[]>(`/ads/position/${position}`),
-  
+
   trackImpression: (id: string) =>
     api.post(`/ads/${id}/impression`),
-  
+
   trackClick: (id: string) =>
     api.post(`/ads/${id}/click`),
 };
@@ -579,15 +594,15 @@ export const packageApi = {
 };
 
 export const settingsApi = {
-  getPublic: () => 
+  getPublic: () =>
     api.get('/settings/public'),
-  
-  getAll: (group?: string) => 
+
+  getAll: (group?: string) =>
     api.get('/settings', { params: { group } }),
-  
+
   getByGroup: (group: string) =>
     api.get<Setting[]>('/settings', { params: { group } }),
-  
+
   getByKey: (key: string) =>
     api.get<Setting>(`/settings/${key}`),
 };
@@ -595,7 +610,7 @@ export const settingsApi = {
 export const agentPortalApi = {
   getProfile: () =>
     api.get('/agent-portal/profile'),
-  
+
   getDashboard: () =>
     api.get('/agent-portal/dashboard'),
 };
@@ -603,31 +618,31 @@ export const agentPortalApi = {
 export const authApi = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
-  
-  register: (data: { 
-    email: string; 
-    password: string; 
-    firstName: string; 
-    lastName: string; 
+
+  register: (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
     phone: string;
     governorateId?: string;
     cityId?: string;
     districtId?: string;
   }) =>
     api.post('/auth/register', data),
-  
+
   me: () =>
     api.get('/auth/me'),
-  
+
   logout: () =>
     api.post('/auth/logout'),
-  
+
   refresh: (refreshToken: string) =>
     api.post('/auth/refresh', { refreshToken }),
-  
+
   forgotPassword: (email: string) =>
     api.post('/auth/forgot-password', { email }),
-  
+
   resetPassword: (token: string, password: string) =>
     api.post('/auth/reset-password', { token, password }),
 };

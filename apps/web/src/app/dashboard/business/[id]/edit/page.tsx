@@ -71,8 +71,9 @@ export default function EditBusinessPage({ params }: { params: Promise<{ id: str
     onSuccess: () => {
       alert('تم تحديث البيانات بنجاح');
       queryClient.invalidateQueries({ queryKey: ['business', id] });
-      queryClient.invalidateQueries({ queryKey: ['my-businesses'] });
-      router.push('/dashboard/my-businesses');
+      queryClient.invalidateQueries({ queryKey: ['user-dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['user-business-stats'] });
+      router.push('/dashboard');
     },
     onError: (error: any) => {
       alert(error.response?.data?.message || 'فشل تحديث البيانات');

@@ -1,12 +1,10 @@
-import { IsString, Length, Matches } from 'class-validator';
+import { IsString, Length, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class VerifyOtpDto {
   @ApiProperty({ description: 'رقم الهاتف' })
   @IsString()
-  @Matches(/^(010|011|012|015)\d{8}$/, {
-    message: 'رقم الهاتف يجب أن يكون رقم مصري صحيح',
-  })
+  @MinLength(8, { message: 'رقم الهاتف يجب أن يكون 8 أرقام على الأقل' })
   phone: string;
 
   @ApiProperty({ description: 'رمز التحقق' })

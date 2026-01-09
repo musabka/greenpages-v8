@@ -1383,6 +1383,314 @@ export class GovernorateManagerService {
   }
 
   /**
+   * الحصول على أرصدة المندوبين (المبالغ في ذمتهم)
+   */
+  async getAgentsBalances(managerUserId: string, query: { page?: number; limit?: number }) {
+    const governorateIds = await this.getManagerGovernorateIds(managerUserId);
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    // Get agents in manager's governorates
+    const [agents, total] = await Promise.all([
+      this.prisma.agentProfile.findMany({
+        where: {
+          governorates: {
+            some: { governorateId: { in: governorateIds } },
+          },
+          isActive: true,
+        },
+        skip,
+        take: limit,
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              avatar: true,
+            },
+          },
+          governorates: {
+            include: {
+              governorate: { select: { nameAr: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.agentProfile.count({
+        where: {
+          governorates: {
+            some: { governorateId: { in: governorateIds } },
+          },
+          isActive: true,
+        },
+      }),
+    ]);
+
+    // Get financial data for each agent
+    const agentsWithBalances = await Promise.all(
+      agents.map(async (agent) => {
+        const [
+          totalCollectedResult,
+          pendingCollectionsResult,
+          totalSubmittedResult,
+          lastCollection,
+        ] = await Promise.all([
+          // إجمالي المقبوضات
+          this.prisma.agentCollection.aggregate({
+            where: { agentProfileId: agent.id },
+            _sum: { amount: true },
+          }),
+          // المقبوضات غير المُسلّمة (الرصيد الحالي في الذمة)
+          this.prisma.agentCollection.aggregate({
+            where: {
+              agentProfileId: agent.id,
+              status: 'COLLECTED',
+            },
+            _sum: { amount: true },
+            _count: true,
+          }),
+          // إجمالي المسلّم
+          this.prisma.agentSettlement.aggregate({
+            where: {
+              agentProfileId: agent.id,
+              status: 'COMPLETED',
+            },
+            _sum: { totalAmount: true },
+          }),
+          // آخر تحصيل
+          this.prisma.agentCollection.findFirst({
+            where: { agentProfileId: agent.id },
+            orderBy: { collectedAt: 'desc' },
+            select: { collectedAt: true, amount: true },
+          }),
+        ]);
+
+        return {
+          id: agent.id,
+          userId: agent.userId,
+          user: agent.user,
+          governorates: agent.governorates.map(g => g.governorate.nameAr),
+          commissionRate: Number(agent.commissionRate),
+          balance: {
+            currentBalance: Number(pendingCollectionsResult._sum.amount || 0),
+            pendingCollectionsCount: pendingCollectionsResult._count || 0,
+            totalCollected: Number(totalCollectedResult._sum.amount || 0),
+            totalSubmitted: Number(totalSubmittedResult._sum.totalAmount || 0),
+          },
+          lastCollection: lastCollection ? {
+            amount: Number(lastCollection.amount),
+            date: lastCollection.collectedAt,
+          } : null,
+        };
+      })
+    );
+
+    // Sort by current balance (highest first - agents with most money in custody)
+    agentsWithBalances.sort((a, b) => b.balance.currentBalance - a.balance.currentBalance);
+
+    // Calculate summary
+    const summary = {
+      totalAgents: total,
+      totalPendingBalance: agentsWithBalances.reduce((sum, a) => sum + a.balance.currentBalance, 0),
+      agentsWithBalance: agentsWithBalances.filter(a => a.balance.currentBalance > 0).length,
+    };
+
+    return {
+      data: agentsWithBalances,
+      summary,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * الحصول على تفاصيل المقبوضات غير المسلمة لمندوب معين
+   */
+  async getAgentPendingCollections(managerUserId: string, agentProfileId: string) {
+    const governorateIds = await this.getManagerGovernorateIds(managerUserId);
+
+    // Verify agent belongs to manager's governorates
+    const agent = await this.prisma.agentProfile.findFirst({
+      where: {
+        id: agentProfileId,
+        governorates: {
+          some: { governorateId: { in: governorateIds } },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    if (!agent) {
+      throw new ForbiddenException('هذا المندوب لا يتبع للمحافظات التي تديرها');
+    }
+
+    // Get pending collections
+    const collections = await this.prisma.agentCollection.findMany({
+      where: {
+        agentProfileId,
+        status: 'COLLECTED',
+      },
+      orderBy: { collectedAt: 'desc' },
+      include: {
+        business: {
+          select: {
+            id: true,
+            nameAr: true,
+            governorate: { select: { nameAr: true } },
+          },
+        },
+      },
+    });
+
+    const totalAmount = collections.reduce((sum, c) => sum + Number(c.amount), 0);
+
+    return {
+      agent: {
+        id: agent.id,
+        userId: agent.userId,
+        name: `${agent.user.firstName} ${agent.user.lastName}`,
+      },
+      collections,
+      summary: {
+        count: collections.length,
+        totalAmount,
+      },
+    };
+  }
+
+  /**
+   * استلام المبلغ من المندوب (إنشاء تسوية مكتملة)
+   */
+  async receivePaymentFromAgent(
+    managerUserId: string,
+    agentProfileId: string,
+    data: {
+      amount?: number;
+      collectionIds?: string[];
+      notes?: string;
+      receiptNumber?: string;
+    },
+  ) {
+    const governorateIds = await this.getManagerGovernorateIds(managerUserId);
+
+    // Verify agent belongs to manager's governorates
+    const agent = await this.prisma.agentProfile.findFirst({
+      where: {
+        id: agentProfileId,
+        governorates: {
+          some: { governorateId: { in: governorateIds } },
+        },
+      },
+      include: {
+        user: {
+          select: { firstName: true, lastName: true },
+        },
+      },
+    });
+
+    if (!agent) {
+      throw new ForbiddenException('هذا المندوب لا يتبع للمحافظات التي تديرها');
+    }
+
+    // Get pending collections
+    const pendingCollections = await this.prisma.agentCollection.findMany({
+      where: {
+        agentProfileId,
+        status: 'COLLECTED',
+        ...(data.collectionIds && data.collectionIds.length > 0
+          ? { id: { in: data.collectionIds } }
+          : {}),
+      },
+    });
+
+    if (pendingCollections.length === 0) {
+      throw new BadRequestException('لا توجد مقبوضات معلقة لهذا المندوب');
+    }
+
+    const totalPending = pendingCollections.reduce((sum, c) => sum + Number(c.amount), 0);
+
+    // If specific amount provided, validate it
+    if (data.amount && data.amount > totalPending) {
+      throw new BadRequestException('المبلغ المحدد أكبر من المقبوضات المعلقة');
+    }
+
+    // Determine which collections to settle
+    let collectionsToSettle = pendingCollections;
+    let settleAmount = totalPending;
+
+    if (data.amount && data.amount < totalPending) {
+      // Partial settlement - select collections up to the amount
+      collectionsToSettle = [];
+      let runningTotal = 0;
+      for (const collection of pendingCollections) {
+        if (runningTotal >= data.amount) break;
+        collectionsToSettle.push(collection);
+        runningTotal += Number(collection.amount);
+      }
+      settleAmount = runningTotal;
+    }
+
+    const collectionIds = collectionsToSettle.map(c => c.id);
+
+    // Create settlement in transaction
+    return this.prisma.$transaction(async (tx) => {
+      // Create completed settlement directly
+      const settlement = await tx.agentSettlement.create({
+        data: {
+          agentProfileId,
+          totalAmount: settleAmount,
+          collectionIds,
+          notes: data.notes,
+          receiptNumber: data.receiptNumber || `RCP-${Date.now()}`,
+          status: 'COMPLETED',
+          requestedAt: new Date(),
+          approvedAt: new Date(),
+          completedAt: new Date(),
+          receivedByUserId: managerUserId,
+        },
+      });
+
+      // Update collections status
+      await tx.agentCollection.updateMany({
+        where: { id: { in: collectionIds } },
+        data: {
+          status: 'VERIFIED',
+          settlementId: settlement.id,
+          settledAt: new Date(),
+          verifiedAt: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        message: `تم استلام ${settleAmount.toLocaleString()} ل.س من المندوب ${agent.user.firstName} ${agent.user.lastName}`,
+        settlement: {
+          id: settlement.id,
+          amount: settleAmount,
+          collectionsCount: collectionIds.length,
+          receiptNumber: settlement.receiptNumber,
+          completedAt: settlement.completedAt,
+        },
+      };
+    });
+  }
+
+  /**
    * Helper: الحصول على معرفات المحافظات للمدير
    */
   private async getManagerGovernorateIds(userId: string): Promise<string[]> {

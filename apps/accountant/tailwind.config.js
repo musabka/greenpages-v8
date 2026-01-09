@@ -21,6 +21,22 @@ module.exports = {
           900: '#14532d',
         },
       },
+      fontFamily: {
+        'sans': [
+          'Noto Sans Arabic',
+          'Segoe UI',
+          'Tahoma',
+          'Arial',
+          'Helvetica Neue',
+          'Helvetica',
+          'DejaVu Sans',
+          'Liberation Sans',
+          'Arabic UI Text',
+          'SF Pro Text',
+          'system-ui',
+          'sans-serif'
+        ],
+      },
     },
   },
   plugins: [],

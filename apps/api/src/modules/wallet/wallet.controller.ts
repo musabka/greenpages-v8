@@ -69,7 +69,21 @@ export class WalletController {
   @Post('pay')
   @ApiOperation({ summary: 'دفع اشتراك من المحفظة' })
   async payFromWallet(@Request() req: any, @Body() dto: WalletPaymentDto) {
-    return this.walletService.payFromWallet(req.user.id, dto);
+    console.log('🎯 WalletController.payFromWallet - استُدعي!', {
+      userId: req.user.id,
+      packageId: dto.packageId,
+      businessId: dto.businessId,
+    });
+    
+    const result = await this.walletService.payFromWallet(req.user.id, dto);
+    
+    console.log('🎯 WalletController.payFromWallet - انتهى!', {
+      success: result.success,
+      hasInvoiceId: !!result.accounting?.invoiceId,
+      invoiceId: result.accounting?.invoiceId,
+    });
+    
+    return result;
   }
 
   // ==========================================

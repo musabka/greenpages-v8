@@ -61,7 +61,7 @@ export default function NotificationSettingsPage() {
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/settings/group/notifications', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/settings/group/notifications`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -104,7 +104,7 @@ export default function NotificationSettingsPage() {
         is_public: false,
       }));
 
-      const response = await fetch('http://localhost:3000/api/v1/settings/bulk', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/settings/bulk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,7 +135,7 @@ export default function NotificationSettingsPage() {
       let body = {};
 
       if (service === 'fcm') {
-        endpoint = 'http://localhost:3000/api/v1/notifications/integration/test/fcm';
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/notifications/integration/test/fcm`;
         body = {
           serverKey: settings.fcm_server_key,
           senderId: settings.fcm_sender_id,
@@ -143,7 +143,7 @@ export default function NotificationSettingsPage() {
         };
       } else if (service === 'smtp') {
         const testEmail = prompt('أدخل البريد الإلكتروني لإرسال رسالة اختبار (اختياري):');
-        endpoint = 'http://localhost:3000/api/v1/notifications/integration/test/smtp';
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/notifications/integration/test/smtp`;
         body = {
           host: settings.smtp_host,
           port: settings.smtp_port,
@@ -155,7 +155,7 @@ export default function NotificationSettingsPage() {
         };
       } else if (service === 'sms') {
         const testNumber = prompt('أدخل رقم الهاتف لإرسال رسالة اختبار (اختياري):');
-        endpoint = 'http://localhost:3000/api/v1/notifications/integration/test/sms';
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/notifications/integration/test/sms`;
         body = {
           provider: settings.sms_provider,
           apiKey: settings.sms_api_key,

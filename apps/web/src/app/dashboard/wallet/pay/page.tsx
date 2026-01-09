@@ -147,11 +147,11 @@ export default function WalletPayPage() {
               يجب أن تمتلك نشاطاً تجارياً لدفع اشتراكه
             </p>
             <Link
-              href="/dashboard/my-businesses"
+              href="/dashboard"
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               <Building2 className="w-4 h-4" />
-              إضافة نشاط تجاري
+              العودة للوحة التحكم
             </Link>
           </div>
         ) : (

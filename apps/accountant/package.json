@@ -10,13 +10,13 @@
   },
   "dependencies": {
     "@greenpages/database": "workspace:*",
-    "next": "^15.1.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "axios": "^1.7.9",
     "date-fns": "^4.1.0",
-    "recharts": "^2.15.0",
-    "lucide-react": "^0.469.0"
+    "lucide-react": "^0.469.0",
+    "next": "^16.1.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^2.15.4"
   },
   "devDependencies": {
     "@types/node": "^22",

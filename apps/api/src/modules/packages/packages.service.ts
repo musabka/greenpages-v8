@@ -7,6 +7,8 @@ import { AssignPackageDto } from './dto/assign-package.dto';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { Decimal } from '@prisma/client/runtime/library';
+import { WalletAccountingBridge } from '../wallet/wallet-accounting.bridge';
+import { AccountingService } from '../accounting/accounting.service';
 
 // Cache TTL in seconds (5 minutes)
 const PACKAGE_CACHE_TTL = 300;
@@ -18,6 +20,8 @@ export class PackagesService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly accountingBridge: WalletAccountingBridge,
+    private readonly accountingService: AccountingService,
   ) {}
 
   async createPackage(data: CreatePackageDto): Promise<Package> {
@@ -108,7 +112,12 @@ export class PackagesService {
     await this.prisma.package.delete({ where: { id } });
   }
 
-  async assignPackage(data: AssignPackageDto, userId?: string, userRole?: UserRole): Promise<BusinessPackage> {
+  async assignPackage(
+    data: AssignPackageDto, 
+    userId?: string, 
+    userRole?: UserRole,
+    options?: { skipInvoice?: boolean }
+  ): Promise<BusinessPackage> {
     const { businessId, packageId, durationDays, autoRenew, customExpiryDate } = data;
 
     const business = await this.prisma.business.findUnique({ where: { id: businessId } });
@@ -157,8 +166,17 @@ export class PackagesService {
       
       // التحقق من وجود اشتراك نشط حالي للتمديد
       const currentBP = await this.prisma.businessPackage.findUnique({
-        where: { businessId }
+        where: { businessId },
+        include: { package: true },
       });
+
+      this.logger.log(`📦 الاشتراك الحالي: ${currentBP ? 'موجود' : 'غير موجود'}`);
+      
+      if (currentBP) {
+        this.logger.log(`   - isActive: ${currentBP.isActive}`);
+        this.logger.log(`   - endDate: ${currentBP.endDate}`);
+        this.logger.log(`   - packageId: ${currentBP.packageId} (طلب: ${packageId})`);
+      }
 
       // إذا كان هناك اشتراك نشط وغير منتهي، نقوم بالتمديد من تاريخ الانتهاء الحالي
       if (currentBP && currentBP.isActive && currentBP.endDate && currentBP.endDate > new Date()) {
@@ -167,16 +185,19 @@ export class PackagesService {
           startDate = currentBP.startDate; // نحافظ على تاريخ البدء الأصلي عند التمديد
           endDate = new Date(currentBP.endDate);
           endDate.setDate(endDate.getDate() + daysToAdd);
+          this.logger.log(`✅ تجديد نفس الباقة - التمديد من ${currentBP.endDate.toISOString()} إلى ${endDate.toISOString()}`);
         } else {
           // إذا كانت باقة مختلفة، تبدأ من الآن (ترقية/تغيير)
           startDate = new Date(); // إعادة ضبط تاريخ البدء لتاريخ اليوم
           endDate = new Date();
           endDate.setDate(endDate.getDate() + daysToAdd);
+          this.logger.log(`🔄 ترقية/تغيير باقة - البدء من الآن حتى ${endDate.toISOString()}`);
         }
       } else {
         // اشتراك جديد أو منتهي
         endDate = new Date();
         endDate.setDate(endDate.getDate() + daysToAdd);
+        this.logger.log(`🆕 اشتراك جديد أو منتهي - من الآن حتى ${endDate.toISOString()}`);
       }
     }
 
@@ -258,6 +279,86 @@ export class PackagesService {
 
     // Invalidate cache after successful assignment
     await this.invalidateBusinessPackageCache(businessId);
+    
+    // إنشاء فاتورة للباقة (فقط إذا كانت الباقة غير مجانية ولم يتم تخطي إنشاء الفاتورة)
+    // skipInvoice: يستخدم عندما يتم الدفع من المحفظة لأن WalletAccountingBridge يتولى إنشاء الفاتورة
+    if (!pkg.isDefault && Number(pkg.price) > 0 && !options?.skipInvoice) {
+      try {
+        console.log(`📄 Creating package invoice for business: ${businessId}`);
+        
+        const business = await this.prisma.business.findUnique({
+          where: { id: businessId },
+          select: {
+            id: true,
+            nameAr: true,
+            ownerId: true,
+            agentId: true,
+            owner: {
+              select: {
+                email: true,
+                phone: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        });
+
+        if (business) {
+          // الفاتورة للمالك، وإن لم يكن هناك مالك فللمندوب
+          const customerId = business.ownerId || business.agentId;
+          const customerName = business.owner 
+            ? `${business.owner.firstName} ${business.owner.lastName}`.trim()
+            : business.nameAr;
+          const customerEmail = business.owner?.email;
+          const customerPhone = business.owner?.phone;
+          
+          // المُنشئ هو المستخدم الذي قام بتعيين/تجديد الباقة (Agent/Admin/User)
+          // مهم: لا نستخدم business.agentId هنا لأن هذا يخلط "من نفّذ العملية" مع "المندوب المرتبط بالنشاط".
+          const createdById = userId ?? business.agentId;
+          
+          if (customerId && createdById) {
+            const invoice = await this.accountingService.createInvoice(createdById, {
+              businessId,
+              customerId,
+              customerName,
+              customerEmail,
+              customerPhone,
+              invoiceType: 'SUBSCRIPTION',
+              lines: [
+                {
+                  description: `Package subscription: ${pkg.nameAr}`,
+                  descriptionAr: `اشتراك الباقة: ${pkg.nameAr}`,
+                  quantity: 1,
+                  unitPrice: Number(pkg.price),
+                },
+              ],
+              notesAr: `فاتورة اشتراك الباقة ${pkg.nameAr} للنشاط التجاري: ${business.nameAr}`,
+            });
+            console.log(`✅ Package invoice created: ${invoice.invoiceNumber} - Status: ${invoice.status}`);
+            
+            // ✅ إصدار الفاتورة تلقائياً (تغيير من DRAFT إلى ISSUED)
+            const issuedInvoice = await this.accountingService.issueInvoice(invoice.id, createdById);
+            console.log(`✅ Invoice issued - New Status: ${issuedInvoice.status}`);
+            
+            // ✅ دائماً نحول الفاتورة إلى PAID مباشرة
+            // المندوب يحصّل نقدياً، والمستخدم/الأدمن يدفع مباشرة
+            const paymentMethod = userRole === UserRole.AGENT ? 'CASH' : 'WALLET';
+            const paymentResult = await this.accountingService.recordInvoicePayment(
+              invoice.id,
+              createdById,
+              Number(pkg.price),
+              paymentMethod,
+            );
+            console.log(`✅ Invoice payment recorded - New Status: ${paymentResult.status}`);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error creating package invoice:', error);
+        // لا نوقف عملية تعيين الباقة
+      }
+    }
+    
     this.logger.log(`Package ${pkg.nameAr} assigned to business ${businessId}`);
 
     return businessPackage;
@@ -720,7 +821,8 @@ export class PackagesService {
         commissionRate: new Decimal(commissionRate),
         commissionAmount: new Decimal(commissionAmount),
         type: data.commissionType,
-        status: 'PENDING',
+        status: 'APPROVED', // العمولة معتمدة مباشرة لأن المندوب أضاف النشاط ودفع العميل
+        approvedAt: new Date(),
         notes: `عمولة ${data.commissionType === 'NEW_SUBSCRIPTION' ? 'اشتراك جديد' : data.commissionType === 'RENEWAL' ? 'تجديد' : 'ترقية'}`,
       },
     });
@@ -734,6 +836,18 @@ export class PackagesService {
         totalCommissions: {
           increment: new Decimal(commissionAmount),
         },
+      },
+    });
+
+    // ✅ إضافة العمولة إلى agentCollection لتحديث الرصيد الحالي
+    await tx.agentCollection.create({
+      data: {
+        agentProfileId: agentProfile.id,
+        businessId: data.businessId,
+        amount: new Decimal(commissionAmount),
+        status: 'COLLECTED', // العمولة محصلة مباشرة
+        description: 'Commission',
+        notes: `عمولة ${data.commissionType === 'NEW_SUBSCRIPTION' ? 'اشتراك جديد' : data.commissionType === 'RENEWAL' ? 'تجديد' : 'ترقية'} - ${packagePrice} ل.س`,
       },
     });
 

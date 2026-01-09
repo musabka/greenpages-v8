@@ -1,477 +1,370 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import {
+  ArrowLeft,
   Wallet,
   ArrowUpCircle,
-  ArrowDownCircle,
-  CreditCard,
-  History,
-  Plus,
-  Minus,
-  RefreshCw,
-  ChevronRight,
-  AlertCircle,
-  CheckCircle2,
+  TrendingUp,
+  TrendingDown,
   Clock,
+  CheckCircle,
   XCircle,
-  Building2,
+  AlertCircle,
+  CreditCard,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import Link from 'next/link';
+import { api } from '@/lib/api';
+import { useState } from 'react';
 
-interface WalletBalance {
-  balance: number;
-  frozenBalance: number;
-  availableBalance: number;
-  totalDeposits: number;
-  totalWithdrawals: number;
-  totalSpent: number;
-  currency: string;
-  status: string;
-}
+type TransactionType =
+  | 'DEPOSIT'
+  | 'PAYMENT'
+  | 'REFUND'
+  | 'COMMISSION'
+  | 'BONUS'
+  | 'TRANSFER_IN'
+  | 'TRANSFER_OUT'
+  | 'FEE'
+  | 'ADJUSTMENT';
+
+type TransactionStatus =
+  | 'PENDING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'REVERSED';
 
 interface Transaction {
   id: string;
-  type: string;
+  type: TransactionType;
   amount: number;
   balanceBefore: number;
   balanceAfter: number;
-  description: string;
-  descriptionAr: string;
-  status: string;
+  description?: string;
+  descriptionAr?: string;
+  status: TransactionStatus;
   createdAt: string;
 }
 
-interface TopUpRequest {
-  id: string;
-  amount: number;
-  method: string;
-  status: string;
-  createdAt: string;
-}
-
-interface WithdrawalRequest {
-  id: string;
-  amount: number;
-  method: string;
-  status: string;
-  createdAt: string;
-}
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('ar-SY', {
-    style: 'decimal',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount) + ' ل.س';
+const transactionTypeLabels: Record<TransactionType, string> = {
+  DEPOSIT: 'إيداع',
+  PAYMENT: 'دفع',
+  REFUND: 'استرداد',
+  COMMISSION: 'عمولة',
+  BONUS: 'مكافأة',
+  TRANSFER_IN: 'تحويل وارد',
+  TRANSFER_OUT: 'تحويل صادر',
+  FEE: 'رسوم',
+  ADJUSTMENT: 'تعديل',
 };
 
-const getStatusBadge = (status: string) => {
-  const statusConfig: Record<string, { color: string; icon: React.ReactNode; text: string }> = {
-    PENDING: { color: 'bg-yellow-100 text-yellow-800', icon: <Clock className="w-3 h-3" />, text: 'قيد الانتظار' },
-    APPROVED: { color: 'bg-blue-100 text-blue-800', icon: <CheckCircle2 className="w-3 h-3" />, text: 'موافق عليها' },
-    COMPLETED: { color: 'bg-green-100 text-green-800', icon: <CheckCircle2 className="w-3 h-3" />, text: 'مكتملة' },
-    REJECTED: { color: 'bg-red-100 text-red-800', icon: <XCircle className="w-3 h-3" />, text: 'مرفوضة' },
-    CANCELLED: { color: 'bg-gray-100 text-gray-800', icon: <XCircle className="w-3 h-3" />, text: 'ملغاة' },
-    PROCESSING: { color: 'bg-purple-100 text-purple-800', icon: <RefreshCw className="w-3 h-3 animate-spin" />, text: 'جاري التنفيذ' },
-  };
-
-  const config = statusConfig[status] || { color: 'bg-gray-100 text-gray-800', icon: null, text: status };
-
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
-      {config.icon}
-      {config.text}
-    </span>
-  );
+const statusLabels: Record<TransactionStatus, string> = {
+  PENDING: 'قيد الانتظار',
+  COMPLETED: 'مكتمل',
+  FAILED: 'فشل',
+  CANCELLED: 'ملغى',
+  REVERSED: 'مُسترجع',
 };
 
-const getTransactionTypeInfo = (type: string) => {
-  const types: Record<string, { icon: React.ReactNode; color: string; text: string }> = {
-    DEPOSIT: { icon: <ArrowDownCircle className="w-5 h-5" />, color: 'text-green-600 bg-green-100', text: 'إيداع' },
-    WITHDRAWAL: { icon: <ArrowUpCircle className="w-5 h-5" />, color: 'text-red-600 bg-red-100', text: 'سحب' },
-    PAYMENT: { icon: <CreditCard className="w-5 h-5" />, color: 'text-blue-600 bg-blue-100', text: 'دفع' },
-    REFUND: { icon: <RefreshCw className="w-5 h-5" />, color: 'text-purple-600 bg-purple-100', text: 'استرداد' },
-    COMMISSION: { icon: <Plus className="w-5 h-5" />, color: 'text-emerald-600 bg-emerald-100', text: 'عمولة' },
-    BONUS: { icon: <Plus className="w-5 h-5" />, color: 'text-yellow-600 bg-yellow-100', text: 'مكافأة' },
-    ADJUSTMENT: { icon: <RefreshCw className="w-5 h-5" />, color: 'text-gray-600 bg-gray-100', text: 'تعديل' },
-  };
+const statusColors: Record<TransactionStatus, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-700',
+  COMPLETED: 'bg-green-100 text-green-700',
+  FAILED: 'bg-red-100 text-red-700',
+  CANCELLED: 'bg-gray-100 text-gray-700',
+  REVERSED: 'bg-orange-100 text-orange-700',
+};
 
-  return types[type] || { icon: <History className="w-5 h-5" />, color: 'text-gray-600 bg-gray-100', text: type };
+const typeIcons: Record<string, any> = {
+  DEPOSIT: ArrowUpCircle,
+  PAYMENT: CreditCard,
+  REFUND: TrendingUp,
+  COMMISSION: TrendingUp,
+  BONUS: TrendingUp,
 };
 
 export default function WalletPage() {
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'transactions' | 'topups' | 'withdrawals'>('transactions');
+  const [filter, setFilter] = useState<TransactionType | 'ALL'>('ALL');
 
-  // جلب رصيد المحفظة
-  const balanceQuery = useQuery({
-    queryKey: ['wallet', 'balance'],
-    queryFn: async () => (await api.get('/wallet/balance')).data as WalletBalance,
-  });
-
-  // جلب المعاملات
-  const transactionsQuery = useQuery({
-    queryKey: ['wallet', 'transactions'],
+  // Fetch wallet balance
+  const walletQuery = useQuery({
+    queryKey: ['wallet-balance'],
     queryFn: async () => {
-      const response = await api.get('/wallet/transactions');
-      return response.data as { data: Transaction[]; meta: any };
+      const response = await api.get('/wallet/balance');
+      return response.data;
     },
+    staleTime: 30_000,
   });
 
-  // جلب طلبات الشحن
-  const topUpsQuery = useQuery({
-    queryKey: ['wallet', 'top-ups'],
-    queryFn: async () => (await api.get('/wallet/top-ups')).data as TopUpRequest[],
+  // Fetch transactions
+  const transactionsQuery = useQuery({
+    queryKey: ['wallet-transactions', filter],
+    queryFn: async () => {
+      const response = await api.get('/wallet/transactions', {
+        params: filter !== 'ALL' ? { type: filter } : {},
+      });
+      // إذا كان الرد يحتوي على data فقط
+      if (response.data?.data) return response.data.data;
+      return response.data;
+    },
+    staleTime: 30_000,
   });
 
-  // جلب طلبات السحب
-  const withdrawalsQuery = useQuery({
-    queryKey: ['wallet', 'withdrawals'],
-    queryFn: async () => (await api.get('/wallet/withdrawals')).data as WithdrawalRequest[],
+  // Fetch top-up requests (pending deposits)
+  const topUpRequestsQuery = useQuery({
+    queryKey: ['wallet-topup-requests'],
+    queryFn: async () => {
+      const response = await api.get('/wallet/top-ups');
+      return response.data;
+    },
+    staleTime: 30_000,
   });
 
-  const balance = balanceQuery.data;
-  const transactions = transactionsQuery.data?.data || [];
-  const topUps = topUpsQuery.data || [];
-  const withdrawals = withdrawalsQuery.data || [];
+  const wallet = walletQuery.data;
+  const transactionsData = transactionsQuery.data;
+  
+  // Handle top-up requests data structure - show only PENDING requests
+  let topUpRequests: any[] = [];
+  if (Array.isArray(topUpRequestsQuery.data)) {
+    topUpRequests = topUpRequestsQuery.data.filter((req: any) => req.status === 'PENDING');
+  } else if (topUpRequestsQuery.data?.data && Array.isArray(topUpRequestsQuery.data.data)) {
+    topUpRequests = topUpRequestsQuery.data.data.filter((req: any) => req.status === 'PENDING');
+  }
+
+  // Debug: Log the actual response to understand the structure
+  if (transactionsData && !Array.isArray(transactionsData)) {
+    console.log('Transactions API response is not an array:', transactionsData);
+  }
+  
+  const transactions: Transaction[] = Array.isArray(transactionsData) ? transactionsData : [];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <Wallet className="w-8 h-8 text-primary-600" />
-              محفظتي
-            </h1>
-            <p className="text-gray-500 mt-1">إدارة رصيدك ومعاملاتك المالية</p>
+        <div className="mb-6">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm font-medium">العودة للوحة التحكم</span>
+          </Link>
+
+          <h1 className="text-3xl font-bold text-gray-900">محفظتي</h1>
+          <p className="text-gray-500 mt-1">إدارة رصيدك والعمليات المالية</p>
+        </div>
+
+        {/* Wallet Balance Card */}
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-8 shadow-xl text-white mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <p className="text-green-100 text-sm font-medium mb-2">
+                الرصيد المتاح
+              </p>
+              <p className="text-5xl font-bold">
+                {(
+                  (wallet?.balance || 0) - (wallet?.frozenBalance || 0)
+                ).toLocaleString('ar-SY')}
+              </p>
+              <p className="text-green-100 text-sm mt-1">ليرة سورية</p>
+            </div>
+            <div className="p-4 rounded-xl bg-white/20 backdrop-blur">
+              <Wallet className="w-10 h-10" />
+            </div>
           </div>
-          <div className="flex gap-3">
+
+          {wallet?.frozenBalance && wallet.frozenBalance > 0 && (
+            <div className="mb-6 p-3 bg-white/10 rounded-lg">
+              <p className="text-sm text-green-100">
+                رصيد مجمد: {wallet.frozenBalance.toLocaleString('ar-SY')} ل.س
+              </p>
+            </div>
+          )}
+
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <p className="text-green-100 text-xs mb-1">إجمالي الإيداعات</p>
+              <p className="text-xl font-bold">
+                {(wallet?.totalDeposits || 0).toLocaleString('ar-SY')}
+              </p>
+            </div>
+            <div>
+              <p className="text-green-100 text-xs mb-1">إجمالي المصروفات</p>
+              <p className="text-xl font-bold">
+                {(wallet?.totalSpent || 0).toLocaleString('ar-SY')}
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons - بسيطة للجميع */}
+          <div className="grid grid-cols-2 gap-3">
             <Link
               href="/dashboard/wallet/top-up"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
+              className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-white/20 hover:bg-white/30 transition-all"
             >
-              <Plus className="w-4 h-4" />
+              <ArrowUpCircle className="w-6 h-6" />
               <span className="text-sm font-medium">شحن المحفظة</span>
             </Link>
+
             <Link
-              href="/dashboard/wallet/withdraw"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+              href="/dashboard"
+              className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-white/20 hover:bg-white/30 transition-all"
             >
-              <Minus className="w-4 h-4" />
-              <span className="text-sm font-medium">سحب</span>
+              <CreditCard className="w-6 h-6" />
+              <span className="text-sm font-medium">لوحة التحكم</span>
             </Link>
           </div>
         </div>
 
-        {/* Balance Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* الرصيد الحالي */}
-          <div className="bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl p-6 text-white shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-primary-100 text-sm font-medium">الرصيد المتاح</span>
-              <Wallet className="w-8 h-8 text-primary-200" />
-            </div>
-            <p className="text-4xl font-bold mb-1">
-              {balance ? formatCurrency(balance.availableBalance) : '---'}
-            </p>
-            {balance && balance.frozenBalance > 0 && (
-              <p className="text-primary-200 text-sm">
-                مجمد: {formatCurrency(balance.frozenBalance)}
-              </p>
-            )}
-          </div>
-
-          {/* إجمالي الإيداعات */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-500 text-sm font-medium">إجمالي الإيداعات</span>
-              <div className="p-2 rounded-lg bg-green-100">
-                <ArrowDownCircle className="w-5 h-5 text-green-600" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">
-              {balance ? formatCurrency(balance.totalDeposits) : '---'}
-            </p>
-          </div>
-
-          {/* إجمالي المصروفات */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-500 text-sm font-medium">إجمالي المصروفات</span>
-              <div className="p-2 rounded-lg bg-red-100">
-                <ArrowUpCircle className="w-5 h-5 text-red-600" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">
-              {balance ? formatCurrency(balance.totalSpent + balance.totalWithdrawals) : '---'}
-            </p>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">إجراءات سريعة</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link
-              href="/dashboard/wallet/pay"
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors"
-            >
-              <div className="p-3 rounded-full bg-primary-100">
-                <CreditCard className="w-6 h-6 text-primary-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-700">دفع اشتراك</span>
-            </Link>
-            <Link
-              href="/dashboard/wallet/top-up"
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-colors"
-            >
-              <div className="p-3 rounded-full bg-green-100">
-                <Plus className="w-6 h-6 text-green-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-700">شحن المحفظة</span>
-            </Link>
-            <Link
-              href="/dashboard/wallet/withdraw"
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition-colors"
-            >
-              <div className="p-3 rounded-full bg-orange-100">
-                <Minus className="w-6 h-6 text-orange-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-700">سحب رصيد</span>
-            </Link>
-            <Link
-              href="/dashboard/my-businesses"
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
-            >
-              <div className="p-3 rounded-full bg-blue-100">
-                <Building2 className="w-6 h-6 text-blue-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-700">أنشطتي التجارية</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="border-b border-gray-200">
-            <nav className="flex -mb-px">
-              <button
-                onClick={() => setActiveTab('transactions')}
-                className={`flex-1 py-4 px-6 text-center text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'transactions'
-                    ? 'border-primary-600 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <History className="w-4 h-4 inline-block ml-2" />
-                سجل المعاملات
-              </button>
-              <button
-                onClick={() => setActiveTab('topups')}
-                className={`flex-1 py-4 px-6 text-center text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'topups'
-                    ? 'border-primary-600 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <ArrowDownCircle className="w-4 h-4 inline-block ml-2" />
-                طلبات الشحن
-                {topUps.filter(t => t.status === 'PENDING').length > 0 && (
-                  <span className="mr-2 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-xs">
-                    {topUps.filter(t => t.status === 'PENDING').length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setActiveTab('withdrawals')}
-                className={`flex-1 py-4 px-6 text-center text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'withdrawals'
-                    ? 'border-primary-600 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <ArrowUpCircle className="w-4 h-4 inline-block ml-2" />
-                طلبات السحب
-                {withdrawals.filter(w => w.status === 'PENDING').length > 0 && (
-                  <span className="mr-2 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-xs">
-                    {withdrawals.filter(w => w.status === 'PENDING').length}
-                  </span>
-                )}
-              </button>
-            </nav>
-          </div>
-
-          <div className="p-6">
-            {/* Transactions Tab */}
-            {activeTab === 'transactions' && (
-              <div className="space-y-4">
-                {transactionsQuery.isLoading ? (
-                  <div className="text-center py-12">
-                    <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-2" />
-                    <p className="text-gray-500">جاري التحميل...</p>
+        {/* طلبات الشحن المعلقة */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
+          <h2 className="text-lg font-bold text-yellow-800 mb-4 flex items-center gap-2">
+            <ArrowUpCircle className="w-5 h-5 text-yellow-600" />
+            طلبات الشحن المعلقة
+          </h2>
+          {topUpRequestsQuery.isLoading ? (
+            <div className="text-center py-6 text-yellow-700">جاري التحميل...</div>
+          ) : topUpRequests.length === 0 ? (
+            <div className="text-center py-6 text-yellow-700">لا توجد طلبات معلقة حالياً</div>
+          ) : (
+            <div className="space-y-3">
+              {topUpRequests.map((req: any) => (
+                <div key={req.id} className="flex items-center gap-4 p-4 border border-yellow-200 rounded-lg bg-white">
+                  <ArrowUpCircle className="w-5 h-5 text-yellow-600" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-gray-900">{req.amount.toLocaleString('ar-SY')} ل.س</span>
+                      <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-yellow-100 text-yellow-700">{req.status === 'PENDING' ? 'قيد التدقيق' : req.status}</span>
+                    </div>
+                    <p className="text-xs text-gray-500">طريقة الشحن: {req.method}</p>
+                    {req.createdAt && (
+                      <p className="text-xs text-gray-400 mt-1">بتاريخ: {new Date(req.createdAt).toLocaleString('ar-SY')}</p>
+                    )}
+                    {req.notes && (
+                      <p className="text-xs text-gray-600 mt-1">ملاحظات: {req.notes}</p>
+                    )}
                   </div>
-                ) : transactions.length === 0 ? (
-                  <div className="text-center py-12">
-                    <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">لا توجد معاملات بعد</p>
-                  </div>
-                ) : (
-                  transactions.map((transaction) => {
-                    const typeInfo = getTransactionTypeInfo(transaction.type);
-                    return (
-                      <div
-                        key={transaction.id}
-                        className="flex items-center justify-between p-4 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Transactions Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900">سجل العمليات</h2>
+
+            {/* Filter */}
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as any)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            >
+              <option value="ALL">جميع العمليات</option>
+              <option value="DEPOSIT">الإيداعات</option>
+              <option value="PAYMENT">المدفوعات</option>
+              <option value="REFUND">الاستردادات</option>
+              <option value="COMMISSION">العمولات</option>
+            </select>
+          </div>
+
+          {/* Transactions List */}
+          {transactionsQuery.isLoading ? (
+            <div className="text-center py-12">
+              <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-gray-600">جاري التحميل...</p>
+            </div>
+          ) : transactionsQuery.isError ? (
+            <div className="text-center py-12">
+              <AlertCircle className="w-16 h-16 text-red-300 mx-auto mb-4" />
+              <p className="text-red-600 mb-2">خطأ في تحميل العمليات</p>
+              <button
+                onClick={() => transactionsQuery.refetch()}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                إعادة المحاولة
+              </button>
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center py-12">
+              <Wallet className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">لا توجد عمليات بعد</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {transactions.map((tx) => {
+                const IconComponent = typeIcons[tx.type] || CreditCard;
+                const isPositive = ['DEPOSIT', 'REFUND', 'COMMISSION', 'BONUS', 'TRANSFER_IN'].includes(tx.type);
+
+                return (
+                  <div
+                    key={tx.id}
+                    className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div
+                      className={`p-3 rounded-lg ${
+                        isPositive ? 'bg-green-50' : 'bg-red-50'
+                      }`}
+                    >
+                      <IconComponent
+                        className={`w-5 h-5 ${
+                          isPositive ? 'text-green-600' : 'text-red-600'
+                        }`}
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium text-gray-900">
+                          {transactionTypeLabels[tx.type]}
+                        </p>
+                        <span
+                          className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                            statusColors[tx.status]
+                          }`}
+                        >
+                          {statusLabels[tx.status]}
+                        </span>
+                      </div>
+
+                      {tx.descriptionAr && (
+                        <p className="text-sm text-gray-600 truncate">
+                          {tx.descriptionAr}
+                        </p>
+                      )}
+
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(tx.createdAt).toLocaleString('ar-SY', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+
+                    <div className="text-left">
+                      <p
+                        className={`text-lg font-bold ${
+                          isPositive ? 'text-green-600' : 'text-red-600'
+                        }`}
                       >
-                        <div className="flex items-center gap-4">
-                          <div className={`p-2.5 rounded-xl ${typeInfo.color}`}>
-                            {typeInfo.icon}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              {transaction.descriptionAr || transaction.description || typeInfo.text}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {formatDistanceToNow(new Date(transaction.createdAt), {
-                                addSuffix: true,
-                                locale: ar,
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-left">
-                          <p
-                            className={`font-bold ${
-                              transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'
-                            }`}
-                          >
-                            {transaction.amount >= 0 ? '+' : ''}
-                            {formatCurrency(transaction.amount)}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            الرصيد: {formatCurrency(transaction.balanceAfter)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-
-            {/* Top-ups Tab */}
-            {activeTab === 'topups' && (
-              <div className="space-y-4">
-                {topUpsQuery.isLoading ? (
-                  <div className="text-center py-12">
-                    <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-2" />
-                    <p className="text-gray-500">جاري التحميل...</p>
-                  </div>
-                ) : topUps.length === 0 ? (
-                  <div className="text-center py-12">
-                    <ArrowDownCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">لا توجد طلبات شحن</p>
-                    <Link
-                      href="/dashboard/wallet/top-up"
-                      className="inline-block mt-4 text-sm text-primary-600 hover:text-primary-700 font-medium"
-                    >
-                      شحن المحفظة الآن
-                    </Link>
-                  </div>
-                ) : (
-                  topUps.map((topUp) => (
-                    <div
-                      key={topUp.id}
-                      className="flex items-center justify-between p-4 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2.5 rounded-xl bg-green-100">
-                          <ArrowDownCircle className="w-5 h-5 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            طلب شحن - {topUp.method}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {formatDistanceToNow(new Date(topUp.createdAt), {
-                              addSuffix: true,
-                              locale: ar,
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <p className="font-bold text-green-600">
-                          +{formatCurrency(topUp.amount)}
-                        </p>
-                        {getStatusBadge(topUp.status)}
-                      </div>
+                        {isPositive ? '+' : '-'}
+                        {tx.amount.toLocaleString('ar-SY')}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        الرصيد: {tx.balanceAfter.toLocaleString('ar-SY')}
+                      </p>
                     </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* Withdrawals Tab */}
-            {activeTab === 'withdrawals' && (
-              <div className="space-y-4">
-                {withdrawalsQuery.isLoading ? (
-                  <div className="text-center py-12">
-                    <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-2" />
-                    <p className="text-gray-500">جاري التحميل...</p>
                   </div>
-                ) : withdrawals.length === 0 ? (
-                  <div className="text-center py-12">
-                    <ArrowUpCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">لا توجد طلبات سحب</p>
-                    <Link
-                      href="/dashboard/wallet/withdraw"
-                      className="inline-block mt-4 text-sm text-primary-600 hover:text-primary-700 font-medium"
-                    >
-                      طلب سحب الآن
-                    </Link>
-                  </div>
-                ) : (
-                  withdrawals.map((withdrawal) => (
-                    <div
-                      key={withdrawal.id}
-                      className="flex items-center justify-between p-4 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2.5 rounded-xl bg-orange-100">
-                          <ArrowUpCircle className="w-5 h-5 text-orange-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            طلب سحب - {withdrawal.method}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {formatDistanceToNow(new Date(withdrawal.createdAt), {
-                              addSuffix: true,
-                              locale: ar,
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <p className="font-bold text-red-600">
-                          -{formatCurrency(withdrawal.amount)}
-                        </p>
-                        {getStatusBadge(withdrawal.status)}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

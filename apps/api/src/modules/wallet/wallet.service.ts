@@ -30,6 +30,7 @@ import {
   AdminWithdrawalsQueryDto,
 } from './dto/wallet.dto';
 import { WalletAccountingBridge } from './wallet-accounting.bridge';
+import { PackagesService } from '../packages/packages.service';
 
 @Injectable()
 export class WalletService {
@@ -37,6 +38,8 @@ export class WalletService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => WalletAccountingBridge))
     private readonly accountingBridge: WalletAccountingBridge,
+    @Inject(forwardRef(() => PackagesService))
+    private readonly packagesService: PackagesService,
   ) {}
 
   // ==========================================
@@ -217,6 +220,12 @@ export class WalletService {
   // الدفع من المحفظة (اشتراك)
   // ==========================================
   async payFromWallet(userId: string, dto: WalletPaymentDto) {
+    console.log('💳 WalletService.payFromWallet - بدء العملية...', {
+      userId,
+      packageId: dto.packageId,
+      businessId: dto.businessId,
+    });
+
     const wallet = await this.getOrCreateWallet(userId);
 
     if (wallet.status !== WalletStatus.ACTIVE) {
@@ -232,24 +241,65 @@ export class WalletService {
       throw new NotFoundException('الباقة غير موجودة');
     }
 
-    const amount = Number(packageData.price);
-    const availableBalance = Number(wallet.balance) - Number(wallet.frozenBalance);
-
-    if (amount > availableBalance) {
-      throw new BadRequestException('الرصيد المتاح غير كافٍ');
-    }
-
     // التحقق من النشاط التجاري
     const business = await this.prisma.business.findUnique({
       where: { id: dto.businessId },
+      include: {
+        package: {
+          include: {
+            package: true,
+          },
+        },
+      },
     });
 
     if (!business) {
       throw new NotFoundException('النشاط التجاري غير موجود');
     }
 
+    // تحديد ما إذا كانت العملية تجديداً لنفس الباقة أو ترقية/شراء لباقة مختلفة
+    const hasActivePackage = Boolean(business.package && business.package.isActive);
+    const currentPackageId = business.package?.packageId;
+    const isRenewal = hasActivePackage && currentPackageId === dto.packageId;
+
+    const baseDurationDays = Number(packageData.durationDays);
+    const requestedDurationDays = dto.durationDays ? Number(dto.durationDays) : baseDurationDays;
+    if (!Number.isFinite(requestedDurationDays) || requestedDurationDays <= 0) {
+      throw new BadRequestException('مدة الاشتراك غير صالحة');
+    }
+
+    // حساب تكلفة الاشتراك بناءً على المدة المطلوبة (سعر يومي * عدد الأيام)
+    const basePrice = Number(packageData.price);
+    const dailyRate = baseDurationDays > 0 ? basePrice / baseDurationDays : basePrice;
+    let amount = dailyRate * requestedDurationDays;
+
+    // خصم قيمة الأيام المتبقية فقط في حالة الترقية/الشراء لباقة مختلفة (Pro-rating)
+    let remainingDays = 0;
+    let remainingValue = 0;
+    if (!isRenewal && hasActivePackage) {
+      const now = new Date();
+      const endDate = new Date(business.package!.endDate);
+      const daysDiff = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      remainingDays = Math.max(0, daysDiff);
+
+      if (remainingDays > 0) {
+        const currentPackagePrice = Number(business.package!.package.price);
+        const currentPackageDuration = Number(business.package!.package.durationDays);
+        const currentDailyRate = currentPackageDuration > 0 ? (currentPackagePrice / currentPackageDuration) : currentPackagePrice;
+        remainingValue = currentDailyRate * remainingDays;
+
+        amount = Math.max(0, amount - remainingValue);
+      }
+    }
+
+    const availableBalance = Number(wallet.balance) - Number(wallet.frozenBalance);
+
+    if (amount > availableBalance) {
+      throw new BadRequestException('الرصيد المتاح غير كافٍ');
+    }
+
     // تنفيذ الدفع في transaction
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const balanceBefore = Number(wallet.balance);
       const balanceAfter = balanceBefore - amount;
 
@@ -271,8 +321,12 @@ export class WalletService {
           amount: new Decimal(-amount),
           balanceBefore: new Decimal(balanceBefore),
           balanceAfter: new Decimal(balanceAfter),
-          description: `Payment for ${packageData.nameAr} subscription`,
-          descriptionAr: `دفع اشتراك ${packageData.nameAr}`,
+          description: isRenewal
+            ? `Renewal payment for ${packageData.nameAr} subscription`
+            : `Payment for ${packageData.nameAr} subscription`,
+          descriptionAr: isRenewal
+            ? `تجديد اشتراك ${packageData.nameAr} لمدة ${requestedDurationDays} يوم`
+            : `دفع اشتراك ${packageData.nameAr}${remainingDays > 0 ? ` (خصم ${remainingDays} يوم متبقي)` : ''}`,
           referenceType: WalletReferenceType.SUBSCRIPTION,
           referenceId: dto.businessId,
           status: WalletTransactionStatus.COMPLETED,
@@ -281,64 +335,123 @@ export class WalletService {
             businessName: business.nameAr,
             packageId: dto.packageId,
             packageName: packageData.nameAr,
-            packagePrice: amount,
+            packagePrice: Number(packageData.price),
+            requestedDurationDays,
+            remainingDays,
+            remainingValue,
+            actualAmountPaid: amount,
+            isRenewal,
           },
         },
       });
 
-      // تحديث أو إنشاء اشتراك النشاط التجاري
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + packageData.durationDays);
+      return { transaction, packageData, remainingDays, remainingValue, balanceAfter, amount };
+    });
 
-      await tx.businessPackage.upsert({
-        where: { businessId: dto.businessId },
-        create: {
-          businessId: dto.businessId,
-          packageId: dto.packageId,
-          startDate: new Date(),
-          endDate,
-          isActive: true,
-        },
-        update: {
-          packageId: dto.packageId,
-          startDate: new Date(),
-          endDate,
-          isActive: true,
-        },
+    // ✅ استخدام PackagesService لتعيين الباقة (خارج transaction لتجنب deadlock)
+    // هذا يضمن تسجيل PackageHistory وإنشاء عمولة المندوب بشكل صحيح
+    // skipInvoice: true لأن WalletAccountingBridge سيتولى إنشاء الفاتورة
+    const updatedPackage = await this.packagesService.assignPackage(
+      {
+        businessId: dto.businessId,
+        packageId: dto.packageId,
+        durationDays: requestedDurationDays,
+      },
+      wallet.userId,
+      undefined,
+      { skipInvoice: true }
+    );
+
+    const { transaction, balanceAfter } = result;
+
+    // ✅ تسجيل القيد المحاسبي وإنشاء الفاتورة
+    let invoiceId: string | undefined;
+    let journalEntryId: string | undefined;
+
+    // جلب بيانات المستخدم خارج try/catch للاستخدام في المحاولة الثانية
+    const user = await this.prisma.user.findUnique({
+      where: { id: wallet.userId },
+      select: { firstName: true, lastName: true, email: true, phone: true },
+    });
+
+        console.log('🔵 WalletService: سنبدأ بإنشاء الفاتورة الآن...', {
+      userId: wallet.userId,
+      amount,
+      packageName: packageData.nameAr,
+      businessId: dto.businessId,
+      accountingBridgeExists: !!this.accountingBridge,
+      accountingBridgeType: typeof this.accountingBridge,
+    });
+
+    if (!this.accountingBridge) {
+      console.error('❌❌❌ CRITICAL: WalletAccountingBridge غير موجود! لن يتم إنشاء الفاتورة.');
+      console.error('❌❌❌ this:', Object.keys(this));
+      throw new Error('WalletAccountingBridge is not injected - CRITICAL ERROR');
+    }
+
+    try {
+      console.log('🟢 WalletService: استدعاء accountingBridge.recordWalletPayment...');
+      const accountingResult = await this.accountingBridge.recordWalletPayment({
+        userId: wallet.userId,
+        paymentId: transaction.id,
+        walletId: wallet.id,
+        walletOwnerId: wallet.userId,
+        grossAmount: amount,
+        taxAmount: 0,
+        netAmount: amount,
+        paymentType: 'SUBSCRIPTION',
+        referenceId: dto.businessId,
+        referenceName: isRenewal
+          ? `تجديد اشتراك ${packageData.nameAr} لمدة ${requestedDurationDays} يوم`
+          : `${packageData.nameAr}${remainingDays > 0 ? ` (خصم ${remainingDays} يوم متبقي)` : ''}`,
+        businessId: dto.businessId,
+        customerName: user ? `${user.firstName} ${user.lastName}` : 'عميل',
+        customerEmail: user?.email,
+        customerPhone: user?.phone,
+        taxId: undefined,
       });
 
-      // ✅ تسجيل القيد المحاسبي
-      try {
-        await this.accountingBridge.recordWalletPayment({
-          userId: wallet.userId,
-          paymentId: transaction.id,
-          walletId: wallet.id,
-          walletOwnerId: wallet.userId,
-          grossAmount: amount,
-          taxAmount: 0, // TODO: احتساب الضريبة من نظام الضرائب
-          netAmount: amount,
-          paymentType: 'SUBSCRIPTION',
-          referenceId: dto.businessId,
-          referenceName: packageData.nameAr,
-        });
-      } catch (error) {
-        console.error('⚠️ Failed to record accounting entry for payment:', error);
+      invoiceId = accountingResult.invoiceId;
+      journalEntryId = accountingResult.journalEntryId;
+      console.log('✅ تم إنشاء الفاتورة بنجاح:', { invoiceId, journalEntryId });
+    } catch (error) {
+      console.error('❌❌❌ CRITICAL: فشل إنشاء الفاتورة!', error);
+      console.error('الخطأ الكامل:', error instanceof Error ? error.message : JSON.stringify(error));
+      console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
+      
+      // تحويل الخطأ إلى رسالة واضحة
+      if (error instanceof Error) {
+        console.error('🔴 Error Name:', error.name);
+        console.error('🔴 Error Message:', error.message);
       }
+      
+      // IMPORTANT: لا نتابع بدون فاتورة - هذا خطر على النظام المحاسبي
+      // بدلاً من ذلك، نعيد رفع الخطأ حتى يراه المستخدم/المطور
+      throw new Error(`فشل إنشاء الفاتورة: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
 
-      return {
-        success: true,
-        transaction: {
-          id: transaction.id,
-          amount,
-          balanceAfter,
-        },
-        subscription: {
-          packageName: packageData.nameAr,
-          startDate: new Date(),
-          endDate,
-        },
-      };
-    });
+    return {
+      success: true,
+      transaction: {
+        id: transaction.id,
+        amount,
+        balanceAfter,
+      },
+      subscription: {
+        packageName: packageData.nameAr,
+        startDate: updatedPackage.startDate,
+        endDate: updatedPackage.endDate,
+      },
+      discount: {
+        remainingDays,
+        remainingValue,
+        originalPrice: Number(packageData.price),
+      },
+      accounting: {
+        invoiceId,
+        journalEntryId,
+      },
+    };
   }
 
   // ==========================================

@@ -108,13 +108,13 @@ export default function BulkNotificationsPage() {
   const loadLocations = async () => {
     try {
       const [govResponse, citiesResponse, districtsResponse] = await Promise.all([
-        fetch('http://localhost:3000/api/v1/governorates', {
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/governorates`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         }),
-        fetch('http://localhost:3000/api/v1/cities', {
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/cities`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         }),
-        fetch('http://localhost:3000/api/v1/districts', {
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/districts`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         }),
       ]);
@@ -145,7 +145,7 @@ export default function BulkNotificationsPage() {
 
   const loadNotifications = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/notifications/bulk', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/bulk`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
 
@@ -165,7 +165,7 @@ export default function BulkNotificationsPage() {
 
   const loadTemplates = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/notifications/templates', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/templates`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
 
@@ -184,7 +184,7 @@ export default function BulkNotificationsPage() {
 
   const loadStats = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/notifications/bulk', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/bulk`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
 
@@ -239,7 +239,7 @@ export default function BulkNotificationsPage() {
 
   const estimateTargets = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/notifications/bulk/estimate', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/bulk/estimate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -267,7 +267,7 @@ export default function BulkNotificationsPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/v1/notifications/bulk', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/bulk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -293,7 +293,7 @@ export default function BulkNotificationsPage() {
 
       // إرسال الإشعار فوراً إذا لم يكن مجدولاً
       if (!scheduledDate) {
-        const sendResponse = await fetch(`http://localhost:3000/api/v1/notifications/bulk/${bulkId}/send`, {
+        const sendResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/bulk/${bulkId}/send`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,

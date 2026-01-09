@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatCurrencySYP } from '@/lib/format';
+import { useAgentsBalances } from '@/lib/hooks/useFinancial';
 import {
   DollarSign,
   PieChart,
@@ -11,6 +13,9 @@ import {
   TrendingUp,
   Calendar,
   FileText,
+  HandCoins,
+  ArrowLeft,
+  AlertCircle,
 } from 'lucide-react';
 
 type FinancialStats = {
@@ -31,11 +36,16 @@ export default function FinancialPage() {
     },
   });
 
+  const { data: balancesData } = useAgentsBalances({ page: 1, limit: 5 });
+
   if (isLoading) {
     return <div className="p-8 text-center">جاري تحميل البيانات المالية...</div>;
   }
 
   if (!stats) return null;
+
+  const pendingBalance = balancesData?.summary?.totalPendingBalance || 0;
+  const agentsWithBalance = balancesData?.summary?.agentsWithBalance || 0;
 
   const cards = [
     {
@@ -107,6 +117,76 @@ export default function FinancialPage() {
             )}
           </div>
         ))}
+      </div>
+
+      {/* Quick Actions - Receive Payments */}
+      {pendingBalance > 0 && (
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-red-600 rounded-xl">
+                <AlertCircle className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-red-900 text-lg">مبالغ معلقة في ذمة المندوبين</h3>
+                <p className="text-red-800">
+                  <span className="font-bold text-xl">{formatCurrencySYP(pendingBalance)}</span>
+                  {' '}من <span className="font-medium">{agentsWithBalance}</span> مندوب
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/dashboard/financial/receive-payments"
+              className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors"
+            >
+              <HandCoins className="w-5 h-5" />
+              استلام المبالغ الآن
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Action Card */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Link
+          href="/dashboard/financial/receive-payments"
+          className="bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl p-6 hover:from-green-700 hover:to-green-800 transition-all shadow-lg"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/20 rounded-lg">
+                <HandCoins className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">استلام المبالغ من المندوبين</h3>
+                <p className="text-sm text-green-100 mt-1">
+                  متابعة الذمم المالية واستلام المقبوضات
+                </p>
+              </div>
+            </div>
+            <ArrowLeft className="w-6 h-6" />
+          </div>
+        </Link>
+
+        <Link
+          href="/dashboard/financial/settlements"
+          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl p-6 hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/20 rounded-lg">
+                <Wallet className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">التسويات المالية</h3>
+                <p className="text-sm text-blue-100 mt-1">
+                  عرض سجل التسويات المكتملة
+                </p>
+              </div>
+            </div>
+            <ArrowLeft className="w-6 h-6" />
+          </div>
+        </Link>
       </div>
 
       {/* Detailed Reports Section (Placeholder for future expansion) */}

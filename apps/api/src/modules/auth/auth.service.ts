@@ -17,25 +17,32 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.findByEmail(email);
-    if (!user) {
-      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
-    }
+    console.log(`Validating user: ${email}`);
+    try {
+      const user = await this.usersService.findByEmail(email);
+      console.log('User found:', user ? user.id : 'null');
+      if (!user) {
+        throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+      }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
-    }
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+      }
 
-    if (user.status !== UserStatus.ACTIVE) {
-      throw new UnauthorizedException('الحساب غير مفعل');
-    }
+      if (user.status !== UserStatus.ACTIVE) {
+        throw new UnauthorizedException('الحساب غير مفعل');
+      }
 
-    const { password: _, ...result } = user;
-    return result;
+      const { password: _, ...result } = user;
+      return result;
+    } catch (error) {
+      console.error('Error in validateUser:', error);
+      throw error;
+    }
   }
 
   async register(registerDto: RegisterDto) {
@@ -123,9 +130,9 @@ export class AuthService {
   }
 
   private async generateTokens(user: any) {
-    const payload: any = { 
-      sub: user.id, 
-      email: user.email, 
+    const payload: any = {
+      sub: user.id,
+      email: user.email,
       role: user.role,
       tokenVersion: user.tokenVersion || 0  // For token invalidation
     };
@@ -133,8 +140,8 @@ export class AuthService {
     // Lightweight capability flag (instead of full array to avoid JWT bloat)
     // Full capabilities are fetched via GET /capabilities/my-capabilities
     const hasCapabilities = await this.prisma.userBusinessCapability.count({
-      where: { 
-        userId: user.id, 
+      where: {
+        userId: user.id,
         status: 'ACTIVE' as any, // CapabilityStatus.ACTIVE
       },
     });

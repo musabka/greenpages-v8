@@ -308,4 +308,51 @@ export class GovernorateManagerController {
   ) {
     return this.governorateManagerService.rejectBusiness(req.user.id, businessId, reason);
   }
+
+  // =================== AGENT COLLECTIONS & PAYMENTS ===================
+
+  /**
+   * الحصول على أرصدة المندوبين (المبالغ في ذمتهم)
+   */
+  @Get('financial/agents-balances')
+  getAgentsBalances(
+    @Request() req,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.governorateManagerService.getAgentsBalances(req.user.id, {
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
+    });
+  }
+
+  /**
+   * الحصول على المقبوضات غير المسلمة لمندوب معين
+   */
+  @Get('financial/agents/:agentProfileId/pending-collections')
+  getAgentPendingCollections(
+    @Request() req,
+    @Param('agentProfileId', ParseUUIDPipe) agentProfileId: string,
+  ) {
+    return this.governorateManagerService.getAgentPendingCollections(
+      req.user.id,
+      agentProfileId,
+    );
+  }
+
+  /**
+   * استلام المبلغ من المندوب
+   */
+  @Post('financial/agents/:agentProfileId/receive-payment')
+  receivePaymentFromAgent(
+    @Request() req,
+    @Param('agentProfileId', ParseUUIDPipe) agentProfileId: string,
+    @Body() body: { amount?: number; collectionIds?: string[]; notes?: string; receiptNumber?: string },
+  ) {
+    return this.governorateManagerService.receivePaymentFromAgent(
+      req.user.id,
+      agentProfileId,
+      body,
+    );
+  }
 }

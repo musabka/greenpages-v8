@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { AccountingAdminController } from './accounting-admin.controller';
+import { AccountingUserController } from './accounting-user.controller';
 import { AccountingService } from './accounting.service';
 import { AccountingPolicyService } from './accounting-policy.service';
 import { AccountingReconciliationService } from './accounting-reconciliation.service';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [AccountingAdminController],
+  controllers: [AccountingAdminController, AccountingUserController],
   providers: [
     AccountingService,
     AccountingPolicyService,

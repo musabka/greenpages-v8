@@ -87,18 +87,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, isLoading, pathname, router]);
 
   const login = async (email: string, password: string) => {
-    const res = await authApi.login(email, password);
-    
-    // Store in localStorage
-    localStorage.setItem('accessToken', res.data.accessToken);
-    localStorage.setItem('refreshToken', res.data.refreshToken);
-    localStorage.setItem('user_data', JSON.stringify(res.data.user));
-    
-    // Store in cookie for middleware
-    document.cookie = `token=${res.data.accessToken}; path=/; max-age=${30 * 24 * 60 * 60}`; // 30 days
-    
-    setUser(res.data.user);
-    router.push('/');
+    try {
+      const res = await authApi.login(email, password);
+      
+      // Store in localStorage
+      localStorage.setItem('accessToken', res.data.accessToken);
+      localStorage.setItem('refreshToken', res.data.refreshToken);
+      localStorage.setItem('user_data', JSON.stringify(res.data.user));
+      
+      // Store in cookie for middleware
+      document.cookie = `token=${res.data.accessToken}; path=/; max-age=${30 * 24 * 60 * 60}`; // 30 days
+      
+      setUser(res.data.user);
+      router.push('/');
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error; // Re-throw to be caught by login page
+    }
   };
 
   const logout = () => {

@@ -12,7 +12,7 @@ import { UpdateBusinessDto } from './dto/update-business.dto';
 @ApiTags('businesses')
 @Controller('businesses')
 export class BusinessesController {
-  constructor(private readonly businessesService: BusinessesService) {}
+  constructor(private readonly businessesService: BusinessesService) { }
 
   @Get()
   @Public()
@@ -67,7 +67,7 @@ export class BusinessesController {
 
   @Get('stats')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR)
+  @Roles(UserRole.ADMIN, UserRole.SUPERVISOR, UserRole.GOVERNORATE_MANAGER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إحصائيات الأنشطة التجارية' })
   async getStats() {

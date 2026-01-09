@@ -27,7 +27,7 @@ export class BusinessesService {
     private readonly commissionsService: CommissionsService,
     @Inject(forwardRef(() => CapabilitiesService))
     private readonly capabilitiesService: CapabilitiesService,
-  ) {}
+  ) { }
 
   private generateSlug(name: string): string {
     const baseSlug = slugify(name, { lower: true, strict: true, locale: 'ar' });
@@ -36,7 +36,7 @@ export class BusinessesService {
 
   async create(data: any): Promise<Business> {
     const slug = data.slug || this.generateSlug(data.nameAr);
-    
+
     const existing = await this.prisma.business.findUnique({ where: { slug } });
     if (existing) {
       throw new ConflictException('النشاط التجاري موجود مسبقاً');
@@ -50,7 +50,7 @@ export class BusinessesService {
           governorates: { select: { governorateId: true } },
         },
       });
-      
+
       if (creatorAgentProfile) {
         const allowedGovernorateIds = new Set(creatorAgentProfile.governorates.map(g => g.governorateId));
         if (!allowedGovernorateIds.has(data.governorateId)) {
@@ -68,7 +68,7 @@ export class BusinessesService {
         where: { userId: data.createdById },
         select: { requiresApproval: true },
       });
-      
+
       // إذا كان المنشئ agent ولا يحتاج موافقة، يتم نشر النشاط مباشرة
       if (creatorAgentProfile && !creatorAgentProfile.requiresApproval) {
         businessStatus = BusinessStatus.APPROVED;
@@ -118,6 +118,7 @@ export class BusinessesService {
     // إذا تم الموافقة على النشاط مباشرة، أنشئ العمولات
     if (business.status === BusinessStatus.APPROVED) {
       try {
+        console.log(`📝 Creating commissions for approved business: ${business.id}`);
         await this.commissionsService.createCommissionsForBusiness(business.id);
       } catch (error) {
         console.error('Error creating commissions:', error);
@@ -144,7 +145,7 @@ export class BusinessesService {
     verified?: boolean;
   }) {
     const { skip, take, search, categoryId, governorateId, cityId, districtId, status, ownerStatus, featured, verified } = params;
-    
+
     const where: Prisma.BusinessWhereInput = {
       deletedAt: null,
     };
@@ -160,15 +161,15 @@ export class BusinessesService {
     if (categoryId) {
       // Include businesses from the selected category and all its subcategories
       const categoryIds = [categoryId];
-      
+
       // Fetch all subcategories of the selected category
       const subcategories = await this.prisma.category.findMany({
         where: { parentId: categoryId },
         select: { id: true },
       });
-      
+
       categoryIds.push(...subcategories.map(c => c.id));
-      
+
       where.categories = { some: { categoryId: { in: categoryIds } } };
     }
 
@@ -582,8 +583,13 @@ export class BusinessesService {
       governorate: true,
       city: true,
       district: true,
-      owner: { select: { id: true, email: true, displayName: true } },
+      owner: { select: { id: true, email: true, displayName: true, firstName: true, lastName: true, phone: true, avatar: true } },
       agent: { select: { id: true, email: true, displayName: true } },
+      package: {
+        include: {
+          package: true,
+        },
+      },
       userCapabilities: {
         where: { status: CapabilityStatus.ACTIVE },
         select: {

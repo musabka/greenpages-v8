@@ -2,7 +2,9 @@
 const nextConfig = {
   transpilePackages: ['@greenpages/database'],
   reactStrictMode: true,
-  swcMinify: true,
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
 };
 
 export default nextConfig;

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Menu, X, Search, ChevronDown, User, LogIn, LogOut, LayoutDashboard, Building2, MessageSquare } from 'lucide-react';
+import { Menu, X, Search, ChevronDown, User, LogIn, LogOut, LayoutDashboard, Building2, MessageSquare, Wallet, Star, FileText, BookOpen, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useSettings } from '@/components/settings-context';
 
@@ -214,15 +214,6 @@ export function Header() {
                           <LayoutDashboard className="w-4 h-4 text-gray-400" />
                           <span className="text-sm">لوحة التحكم</span>
                         </Link>
-                        
-                        <Link
-                          href="/dashboard/my-businesses"
-                          className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <Building2 className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm">أنشطتي التجارية</span>
-                        </Link>
 
                         <Link
                           href="/profile"
@@ -234,12 +225,30 @@ export function Header() {
                         </Link>
 
                         <Link
+                          href="/dashboard/wallet"
+                          className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <Wallet className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm">المحفظة</span>
+                        </Link>
+
+                        <Link
                           href="/my-reviews"
                           className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors"
                           onClick={() => setUserMenuOpen(false)}
                         >
                           <MessageSquare className="w-4 h-4 text-gray-400" />
                           <span className="text-sm">مراجعاتي</span>
+                        </Link>
+
+                        <Link
+                          href="/business-reviews"
+                          className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <Star className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm">المراجعات الواردة</span>
                         </Link>
                       </div>
 

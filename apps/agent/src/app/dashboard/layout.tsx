@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { Toaster } from 'react-hot-toast';
 import {
   User,
   Building2,
@@ -14,6 +15,7 @@ import {
   X,
   Leaf,
   LayoutDashboard,
+  FileText,
 } from 'lucide-react';
 
 interface User {
@@ -30,7 +32,7 @@ const navigation = [
     icon: LayoutDashboard,
   },
   {
-    name: 'النشاطات التجارية',
+    name: 'الأنشطة التجارية',
     href: '/dashboard/businesses',
     icon: Building2,
   },
@@ -43,6 +45,11 @@ const navigation = [
     name: 'المالية',
     href: '/dashboard/financial',
     icon: DollarSign,
+  },
+  {
+    name: 'الفواتير',
+    href: '/dashboard/invoices',
+    icon: FileText,
   },
   {
     name: 'الزيارات',
@@ -116,6 +123,8 @@ export default function AgentDashboardLayout({
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
+      <Toaster position="top-center" reverseOrder={false} />
+
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -177,10 +186,9 @@ export default function AgentDashboardLayout({
                 href={item.href}
                 className={`
                   flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-                  ${
-                    isActive
-                      ? 'bg-green-600 text-white shadow-lg'
-                      : 'text-gray-600 hover:bg-gray-100'
+                  ${isActive
+                    ? 'bg-green-600 text-white shadow-lg'
+                    : 'text-gray-600 hover:bg-gray-100'
                   }
                 `}
                 onClick={() => setSidebarOpen(false)}

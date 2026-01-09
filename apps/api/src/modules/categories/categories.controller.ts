@@ -12,7 +12,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 @ApiTags('categories')
 @Controller('categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+  constructor(private readonly categoriesService: CategoriesService) { }
 
   @Get()
   @Public()

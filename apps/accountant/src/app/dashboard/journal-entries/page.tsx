@@ -54,6 +54,19 @@ const statusLabels = {
   VOID: 'ملغي',
 };
 
+// Utility function to safely format dates
+const formatDate = (dateString: string): string => {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'تاريخ غير صحيح';
+    }
+    return format(date, 'dd/MM/yyyy', { locale: ar });
+  } catch (error) {
+    return 'تاريخ غير صحيح';
+  }
+};
+
 export default function JournalEntriesPage() {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const router = useRouter();
@@ -155,9 +168,9 @@ export default function JournalEntriesPage() {
   };
 
   const filteredEntries = entries.filter((entry) =>
-    entry.entryNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.descriptionAr.includes(searchTerm)
+    (entry.entryNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (entry.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (entry.descriptionAr || '').includes(searchTerm)
   );
 
   return (
@@ -334,27 +347,27 @@ export default function JournalEntriesPage() {
                       <div className="flex items-center">
                         <FileText className="w-5 h-5 text-gray-400 ml-2" />
                         <span className="text-sm font-medium text-gray-900">
-                          {entry.entryNumber}
+                          {entry.entryNumber || ''}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-600">
                         <Calendar className="w-4 h-4 ml-1" />
-                        {format(new Date(entry.entryDate), 'dd/MM/yyyy', { locale: ar })}
+                        {formatDate(entry.entryDate)}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{entry.descriptionAr}</div>
-                      <div className="text-xs text-gray-500">{entry.description}</div>
+                      <div className="text-sm text-gray-900">{entry.descriptionAr || ''}</div>
+                      <div className="text-xs text-gray-500">{entry.description || ''}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {entry.totalAmount.toLocaleString('ar-SY')} {entry.currency.symbol}
+                        {(entry.totalAmount ?? 0).toLocaleString('ar-SY')} {entry.currency?.symbol || ''}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-600">{entry.sourceModule}</span>
+                      <span className="text-sm text-gray-600">{entry.sourceModule || ''}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span

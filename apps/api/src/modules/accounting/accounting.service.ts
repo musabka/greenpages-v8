@@ -55,7 +55,7 @@ export class AccountingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly policyService: AccountingPolicyService,
-  ) {}
+  ) { }
 
   // ==========================================================================
   // HEALTH CHECK
@@ -320,7 +320,7 @@ export class AccountingService {
   private async generateEntryNumber(): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `JE-${year}-`;
-    
+
     const lastEntry = await this.prisma.accJournalEntry.findFirst({
       where: { entryNumber: { startsWith: prefix } },
       orderBy: { entryNumber: 'desc' },
@@ -425,13 +425,13 @@ export class AccountingService {
     return entry;
   }
 
-  async getJournalEntries(query: { 
-    periodId?: string; 
-    status?: AccJournalStatus; 
-    dateFrom?: string; 
-    dateTo?: string; 
-    limit?: number; 
-    offset?: number 
+  async getJournalEntries(query: {
+    periodId?: string;
+    status?: AccJournalStatus;
+    dateFrom?: string;
+    dateTo?: string;
+    limit?: number;
+    offset?: number
   }) {
     const where: Prisma.AccJournalEntryWhereInput = {};
     if (query.periodId) where.periodId = query.periodId;
@@ -513,7 +513,7 @@ export class AccountingService {
     if (entry.period.status === AccPeriodStatus.CLOSED) {
       throw new BadRequestException('لا يمكن إلغاء قيد في فترة مغلقة - يجب إنشاء قيد عكسي في فترة مفتوحة');
     }
-    
+
     // Immutability Guard: يمكن إلغاء POSTED فقط عبر void (قيد عكسي)
     if (entry.status !== AccJournalStatus.POSTED) {
       throw new BadRequestException('يمكن إلغاء القيود المرحّلة فقط');
@@ -793,7 +793,7 @@ export class AccountingService {
   private async generateInvoiceNumber(): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `INV-${year}-`;
-    
+
     const lastInvoice = await this.prisma.accInvoice.findFirst({
       where: { invoiceNumber: { startsWith: prefix } },
       orderBy: { invoiceNumber: 'desc' },
@@ -817,7 +817,7 @@ export class AccountingService {
     customerEmail?: string;
     customerPhone?: string;
     businessId?: string;
-    invoiceType: 'SALE' | 'CREDIT_NOTE' | 'DEBIT_NOTE';
+    invoiceType: 'SUBSCRIPTION' | 'AD' | 'SERVICE' | 'TOP_UP' | 'CREDIT_NOTE';
     currencyId?: string;
     dueDate?: Date;
     notes?: string;
@@ -830,6 +830,14 @@ export class AccountingService {
       taxId?: string;
     }[];
   }) {
+    console.log('🟣 AccountingService.createInvoice - بدء الإنشاء...', {
+      userId,
+      customerId: data.customerId,
+      customerName: data.customerName,
+      invoiceType: data.invoiceType,
+      linesCount: data.lines.length,
+    });
+
     // الحصول على العملة
     const currency = data.currencyId
       ? await this.prisma.accCurrency.findUnique({ where: { id: data.currencyId } })
@@ -888,8 +896,8 @@ export class AccountingService {
       data: {
         invoiceNumber,
         invoiceDate: new Date(),
-        invoiceType: data.invoiceType as any,
-        status: 'DRAFT' as any,
+        invoiceType: data.invoiceType,
+        status: 'DRAFT',
         customerId: data.customerId,
         customerName: data.customerName,
         customerEmail: data.customerEmail,
@@ -902,6 +910,7 @@ export class AccountingService {
         dueDate: data.dueDate,
         notes: data.notes,
         notesAr: data.notesAr,
+        createdById: userId, // المستخدم الذي أنشأ الفاتورة
         lines: {
           create: processedLines,
         },
@@ -976,6 +985,12 @@ export class AccountingService {
       sourceEntityType: 'Invoice',
       sourceEntityId: invoiceId,
       lines,
+      metadata: {
+        customerId: invoice.customerId,
+        businessId: invoice.businessId || undefined,
+        invoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+      },
       autoPost: true,
     });
 
@@ -1005,9 +1020,13 @@ export class AccountingService {
    * الحصول على الفواتير
    */
   async getInvoices(query: { customerId?: string; status?: string; limit?: number; offset?: number }) {
+    console.log('🔍 AccountingService.getInvoices - بدء البحث...', query);
+
     const where: any = {};
     if (query.customerId) where.customerId = query.customerId;
     if (query.status) where.status = query.status;
+
+    console.log('🔍 WHERE clause:', where);
 
     const [data, total] = await Promise.all([
       this.prisma.accInvoice.findMany({
@@ -1016,6 +1035,64 @@ export class AccountingService {
         orderBy: { createdAt: 'desc' },
         take: query.limit ?? 50,
         skip: query.offset ?? 0,
+      }),
+      this.prisma.accInvoice.count({ where }),
+    ]);
+
+    console.log('🔍 نتيجة البحث:', { foundCount: data.length, total });
+
+    return { data, total };
+  }
+
+  /**
+   * فواتير المستخدم المرئية
+   *
+   * القاعدة:
+   * - يرى المستخدم أي فاتورة يكون هو customerId فيها
+   * - ويرى أيضاً فواتير الأنشطة التي يملكها (ownerId أو Capability)
+   *   حتى لو كانت الفاتورة قد أُنشئت قبل ربط النشاط بالمستخدم.
+   */
+  async getUserVisibleInvoices(
+    userId: string,
+    query: { status?: string; limit?: number; offset?: number },
+  ) {
+    const { status, limit = 20, offset = 0 } = query;
+
+    const ownedBusinessIds = await this.prisma.business.findMany({
+      where: {
+        OR: [
+          { ownerId: userId },
+          {
+            userCapabilities: {
+              some: {
+                userId,
+                role: 'OWNER',
+              },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    const businessIdList = ownedBusinessIds.map((b) => b.id);
+
+    const where: any = {
+      OR: [
+        { customerId: userId },
+        businessIdList.length ? { businessId: { in: businessIdList } } : undefined,
+      ].filter(Boolean),
+    };
+
+    if (status) where.status = status;
+
+    const [data, total] = await Promise.all([
+      this.prisma.accInvoice.findMany({
+        where,
+        include: { lines: true, currency: true },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
       }),
       this.prisma.accInvoice.count({ where }),
     ]);
@@ -1073,7 +1150,7 @@ export class AccountingService {
     } else {
       // استلام نقدي أو بنكي
       journalLines.push({
-        accountCode: paymentMethod === 'CASH' ? '1100' : '1101',
+        accountCode: paymentMethod === 'CASH' ? '1101' : '1102',
         debit: amount,
         credit: 0,
         memo: `استلام ${paymentMethod === 'CASH' ? 'نقدي' : 'بنكي'} - فاتورة ${invoice.invoiceNumber}`,
@@ -1103,6 +1180,12 @@ export class AccountingService {
       sourceEntityType: 'InvoicePayment',
       sourceEntityId: invoiceId,
       lines: journalLines,
+      metadata: {
+        customerId: invoice.customerId,
+        invoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+        paymentMethod,
+      },
       autoPost: true,
     });
 

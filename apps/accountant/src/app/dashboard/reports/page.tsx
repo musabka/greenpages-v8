@@ -168,8 +168,289 @@ export default function ReportsPage() {
   };
 
   const handleExport = () => {
-    // TODO: Implement export functionality (PDF/Excel)
-    alert('سيتم تطوير وظيفة التصدير قريباً');
+    const currency = currencies.find(c => c.id === currencyId);
+    const currencySymbol = currency?.symbol || currency?.code || '';
+    
+    let reportTitle = '';
+    let reportContent = '';
+    
+    if (activeReport === 'trial-balance') {
+      reportTitle = 'ميزان المراجعة';
+      reportContent = generateTrialBalanceHTML(currencySymbol);
+    } else if (activeReport === 'income-statement') {
+      reportTitle = 'قائمة الدخل';
+      reportContent = generateIncomeStatementHTML(currencySymbol);
+    } else if (activeReport === 'balance-sheet') {
+      reportTitle = 'الميزانية العمومية';
+      reportContent = generateBalanceSheetHTML(currencySymbol);
+    }
+    
+    if (!reportContent) {
+      alert('لا توجد بيانات للتصدير. يرجى عرض التقرير أولاً');
+      return;
+    }
+
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (!printWindow) {
+      alert('يرجى السماح بالنوافذ المنبثقة');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8">
+        <title>${reportTitle}</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; padding: 20px; }
+          h1 { text-align: center; color: #1f2937; border-bottom: 3px solid #3b82f6; padding-bottom: 10px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .header p { margin: 5px 0; color: #6b7280; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { padding: 10px; text-align: right; border: 1px solid #e5e7eb; }
+          th { background-color: #f3f4f6; font-weight: bold; }
+          tfoot td { font-weight: bold; background-color: #f9fafb; }
+          .section-title { font-size: 18px; font-weight: bold; margin: 20px 0 10px 0; color: #374151; }
+          .summary-box { padding: 15px; margin: 20px 0; border-radius: 5px; }
+          .summary-box.success { background-color: #ecfdf5; border: 2px solid #10b981; }
+          .summary-box.warning { background-color: #fef3c7; border: 2px solid #f59e0b; }
+          .summary-box.error { background-color: #fee2e2; border: 2px solid #ef4444; }
+          .summary-row { display: flex; justify-content: space-between; padding: 10px; }
+          .summary-row.total { font-size: 20px; font-weight: bold; }
+          .amount { font-family: monospace; }
+          .debit { color: #dc2626; }
+          .credit { color: #16a34a; }
+          @media print {
+            .no-print { display: none; }
+            body { padding: 10px; }
+          }
+        </style>
+      </head>
+      <body>
+        ${reportContent}
+        <div class="no-print" style="text-align: center; margin-top: 30px;">
+          <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">طباعة</button>
+          <button onclick="window.close()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer;">إغلاق</button>
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const generateTrialBalanceHTML = (currencySymbol: string) => {
+    if (trialBalance.length === 0) return '';
+    
+    const dateRange = dateFrom && dateTo ? `من ${dateFrom} إلى ${dateTo}` : '';
+    
+    return `
+      <div class="header">
+        <h1>ميزان المراجعة</h1>
+        <p>${dateRange}</p>
+        <p>العملة: ${currencySymbol}</p>
+        <p>تاريخ الطباعة: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ar })}</p>
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>رمز الحساب</th>
+            <th>اسم الحساب</th>
+            <th>النوع</th>
+            <th class="debit">مدين</th>
+            <th class="credit">دائن</th>
+            <th>الرصيد</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${trialBalance.map(account => `
+            <tr>
+              <td class="amount">${account.accountCode}</td>
+              <td>${account.accountName}</td>
+              <td>${account.accountType}</td>
+              <td class="amount debit">${account.debitTotal > 0 ? account.debitTotal.toLocaleString() : '-'}</td>
+              <td class="amount credit">${account.creditTotal > 0 ? account.creditTotal.toLocaleString() : '-'}</td>
+              <td class="amount">${account.balance.toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">الإجمالي</td>
+            <td class="amount debit">${trialBalanceTotals.debit.toLocaleString()}</td>
+            <td class="amount credit">${trialBalanceTotals.credit.toLocaleString()}</td>
+            <td class="amount">${(trialBalanceTotals.debit - trialBalanceTotals.credit).toLocaleString()}</td>
+          </tr>
+        </tfoot>
+      </table>
+      
+      <div class="summary-box ${Math.abs(trialBalanceTotals.debit - trialBalanceTotals.credit) < 0.01 ? 'success' : 'error'}">
+        <p style="margin: 0; font-weight: bold;">
+          ${Math.abs(trialBalanceTotals.debit - trialBalanceTotals.credit) < 0.01 
+            ? '✓ ميزان المراجعة متوازن' 
+            : '⚠ ميزان المراجعة غير متوازن - الفرق: ' + Math.abs(trialBalanceTotals.debit - trialBalanceTotals.credit).toLocaleString()}
+        </p>
+      </div>
+    `;
+  };
+
+  const generateIncomeStatementHTML = (currencySymbol: string) => {
+    if (incomeStatement.length === 0) return '';
+    
+    const dateRange = dateFrom && dateTo ? `من ${dateFrom} إلى ${dateTo}` : '';
+    const revenues = incomeStatement.filter(line => line.categoryType === 'REVENUE');
+    const expenses = incomeStatement.filter(line => line.categoryType === 'EXPENSE');
+    
+    return `
+      <div class="header">
+        <h1>قائمة الدخل</h1>
+        <p>${dateRange}</p>
+        <p>العملة: ${currencySymbol}</p>
+        <p>تاريخ الطباعة: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ar })}</p>
+      </div>
+      
+      <div class="section-title" style="color: #16a34a;">الإيرادات</div>
+      <table>
+        <tbody>
+          ${revenues.map(line => `
+            <tr>
+              <td>${line.categoryName}</td>
+              <td class="amount credit" style="width: 200px;">${line.amount.toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>إجمالي الإيرادات</td>
+            <td class="amount credit">${incomeStatementSummary.totalRevenue.toLocaleString()}</td>
+          </tr>
+        </tfoot>
+      </table>
+      
+      <div class="section-title" style="color: #dc2626;">المصروفات</div>
+      <table>
+        <tbody>
+          ${expenses.map(line => `
+            <tr>
+              <td>${line.categoryName}</td>
+              <td class="amount debit" style="width: 200px;">${line.amount.toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>إجمالي المصروفات</td>
+            <td class="amount debit">${incomeStatementSummary.totalExpenses.toLocaleString()}</td>
+          </tr>
+        </tfoot>
+      </table>
+      
+      <div class="summary-box ${incomeStatementSummary.netIncome >= 0 ? 'success' : 'warning'}" style="margin-top: 30px;">
+        <div class="summary-row total">
+          <span>صافي ${incomeStatementSummary.netIncome >= 0 ? 'الربح' : 'الخسارة'}</span>
+          <span class="amount">${incomeStatementSummary.netIncome.toLocaleString()} ${currencySymbol}</span>
+        </div>
+      </div>
+    `;
+  };
+
+  const generateBalanceSheetHTML = (currencySymbol: string) => {
+    if (balanceSheet.length === 0) return '';
+    
+    const assets = balanceSheet.filter(section => section.sectionType === 'ASSET');
+    const liabilities = balanceSheet.filter(section => section.sectionType === 'LIABILITY');
+    const equity = balanceSheet.filter(section => section.sectionType === 'EQUITY');
+    
+    return `
+      <div class="header">
+        <h1>الميزانية العمومية</h1>
+        <p>في تاريخ: ${dateTo}</p>
+        <p>العملة: ${currencySymbol}</p>
+        <p>تاريخ الطباعة: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ar })}</p>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div>
+          <div class="section-title" style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">الأصول</div>
+          <table>
+            <tbody>
+              ${assets.map(section => `
+                <tr>
+                  <td>${section.sectionName}</td>
+                  <td class="amount" style="width: 150px;">${section.amount.toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="background-color: #dbeafe;">
+                <td>إجمالي الأصول</td>
+                <td class="amount">${balanceSheetSummary.totalAssets.toLocaleString()}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        
+        <div>
+          <div class="section-title" style="color: #dc2626; border-bottom: 2px solid #dc2626; padding-bottom: 5px;">الالتزامات وحقوق الملكية</div>
+          
+          <div style="margin-bottom: 20px;">
+            <p style="font-weight: bold; margin: 10px 0;">الالتزامات</p>
+            <table>
+              <tbody>
+                ${liabilities.map(section => `
+                  <tr>
+                    <td>${section.sectionName}</td>
+                    <td class="amount" style="width: 150px;">${section.amount.toLocaleString()}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+              <tfoot>
+                <tr style="background-color: #fee2e2;">
+                  <td>إجمالي الالتزامات</td>
+                  <td class="amount">${balanceSheetSummary.totalLiabilities.toLocaleString()}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          <div>
+            <p style="font-weight: bold; margin: 10px 0;">حقوق الملكية</p>
+            <table>
+              <tbody>
+                ${equity.map(section => `
+                  <tr>
+                    <td>${section.sectionName}</td>
+                    <td class="amount" style="width: 150px;">${section.amount.toLocaleString()}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+              <tfoot>
+                <tr style="background-color: #d1fae5;">
+                  <td>إجمالي حقوق الملكية</td>
+                  <td class="amount">${balanceSheetSummary.totalEquity.toLocaleString()}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          <div style="margin-top: 20px; padding: 10px; background-color: #f3e8ff; border: 2px solid #a855f7; border-radius: 5px;">
+            <div class="summary-row" style="font-weight: bold;">
+              <span>إجمالي الالتزامات وحقوق الملكية</span>
+              <span class="amount">${(balanceSheetSummary.totalLiabilities + balanceSheetSummary.totalEquity).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="summary-box ${Math.abs(balanceSheetSummary.totalAssets - (balanceSheetSummary.totalLiabilities + balanceSheetSummary.totalEquity)) < 0.01 ? 'success' : 'error'}" style="margin-top: 30px;">
+        <p style="margin: 0; font-weight: bold;">
+          ${Math.abs(balanceSheetSummary.totalAssets - (balanceSheetSummary.totalLiabilities + balanceSheetSummary.totalEquity)) < 0.01 
+            ? '✓ الميزانية العمومية متوازنة' 
+            : '⚠ الميزانية العمومية غير متوازنة - الفرق: ' + Math.abs(balanceSheetSummary.totalAssets - (balanceSheetSummary.totalLiabilities + balanceSheetSummary.totalEquity)).toLocaleString()}
+        </p>
+      </div>
+    `;
   };
 
   return (

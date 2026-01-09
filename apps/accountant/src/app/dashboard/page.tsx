@@ -106,13 +106,13 @@ export default function DashboardPage() {
     },
     {
       title: 'الفواتير',
-      value: stats?.invoices.total || 0,
+      value: (stats?.invoices.total || 0) - (stats?.invoices.draft || 0), // استبعاد المسودات
       icon: Receipt,
       color: 'green',
       details: [
-        { label: 'مسودة', value: stats?.invoices.draft || 0 },
         { label: 'صادرة', value: stats?.invoices.issued || 0 },
         { label: 'مدفوعة', value: stats?.invoices.paid || 0 },
+        { label: 'مسودة (مستبعدة)', value: stats?.invoices.draft || 0 },
       ],
     },
     {
@@ -149,6 +149,16 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">لوحة تحكم المحاسب</h1>
         <p className="text-gray-600 mt-2">نظرة شاملة على البيانات المحاسبية</p>
+      </div>
+
+      {/* Notice about draft exclusion */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="flex items-center">
+          <AlertCircle className="w-5 h-5 text-amber-600 ml-2" />
+          <p className="text-amber-800">
+            <strong>ملاحظة مهمة:</strong> الفواتير المسودة مستبعدة من الإحصائيات والحسابات المالية لضمان دقة البيانات.
+          </p>
+        </div>
       </div>
 
       {/* Stats Grid */}

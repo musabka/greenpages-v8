@@ -12,7 +12,7 @@ import { UpdateGovernorateDto } from './dto/update-governorate.dto';
 @ApiTags('governorates')
 @Controller('governorates')
 export class GovernoratesController {
-  constructor(private readonly governoratesService: GovernoratesService) {}
+  constructor(private readonly governoratesService: GovernoratesService) { }
 
   @Get()
   @Public()

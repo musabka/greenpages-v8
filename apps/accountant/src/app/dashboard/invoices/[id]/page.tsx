@@ -344,23 +344,23 @@ export default function InvoiceDetailsPage() {
             <div className="border-t pt-3">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-gray-600">المجموع الفرعي:</span>
-                <span className="font-medium">{invoice.subtotal.toLocaleString()}</span>
+                <span className="font-medium">{invoice.subtotal?.toLocaleString() || '0'}</span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-gray-600">الضريبة:</span>
-                <span className="font-medium">{invoice.taxAmount.toLocaleString()}</span>
+                <span className="font-medium">{invoice.taxAmount?.toLocaleString() || '0'}</span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-semibold">الإجمالي:</span>
-                <span className="font-bold text-lg">{invoice.totalAmount.toLocaleString()}</span>
+                <span className="font-bold text-lg">{invoice.totalAmount?.toLocaleString() || '0'}</span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-gray-600">المبلغ المدفوع:</span>
-                <span className="font-medium text-green-600">{invoice.amountPaid.toLocaleString()}</span>
+                <span className="font-medium text-green-600">{invoice.amountPaid?.toLocaleString() || '0'}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm font-semibold">المبلغ المستحق:</span>
-                <span className="font-bold text-red-600">{invoice.amountDue.toLocaleString()}</span>
+                <span className="font-bold text-red-600">{invoice.amountDue?.toLocaleString() || '0'}</span>
               </div>
             </div>
           </div>

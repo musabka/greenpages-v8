@@ -129,7 +129,7 @@ describe('Accounting Integration Tests', () => {
       const invoice = await accountingService.createInvoice(testUserId, {
         customerId: 'customer-001',
         customerName: 'Test Customer',
-        invoiceType: 'SALE',
+        invoiceType: 'SUBSCRIPTION',
         lines: [
           { description: 'Service A', quantity: 1, unitPrice: 5000 },
           { description: 'Service B', quantity: 2, unitPrice: 2500 },
@@ -145,7 +145,7 @@ describe('Accounting Integration Tests', () => {
       const invoice = await accountingService.createInvoice(testUserId, {
         customerId: 'customer-002',
         customerName: 'Test Customer 2',
-        invoiceType: 'SALE',
+        invoiceType: 'SUBSCRIPTION',
         lines: [
           { description: 'Test Service', quantity: 1, unitPrice: 10000 },
         ],
@@ -168,7 +168,7 @@ describe('Accounting Integration Tests', () => {
       const invoice = await accountingService.createInvoice(testUserId, {
         customerId: 'customer-003',
         customerName: 'Payment Test Customer',
-        invoiceType: 'SALE',
+        invoiceType: 'SUBSCRIPTION',
         lines: [
           { description: 'Product', quantity: 1, unitPrice: 15000 },
         ],
@@ -192,7 +192,7 @@ describe('Accounting Integration Tests', () => {
       const invoice = await accountingService.createInvoice(testUserId, {
         customerId: 'customer-004',
         customerName: 'Partial Payment Customer',
-        invoiceType: 'SALE',
+        invoiceType: 'SUBSCRIPTION',
         lines: [
           { description: 'Big Product', quantity: 1, unitPrice: 20000 },
         ],
@@ -228,7 +228,7 @@ describe('Accounting Integration Tests', () => {
       const invoice = await accountingService.createInvoice(testUserId, {
         customerId: 'customer-005',
         customerName: 'Refund Customer',
-        invoiceType: 'SALE',
+        invoiceType: 'SUBSCRIPTION',
         lines: [
           { description: 'Refundable Product', quantity: 1, unitPrice: 8000 },
         ],
@@ -251,7 +251,7 @@ describe('Accounting Integration Tests', () => {
       const invoice = await accountingService.createInvoice(testUserId, {
         customerId: 'customer-006',
         customerName: 'Refund Customer 2',
-        invoiceType: 'SALE',
+        invoiceType: 'SUBSCRIPTION',
         lines: [
           { description: 'Product', quantity: 1, unitPrice: 5000 },
         ],

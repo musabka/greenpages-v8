@@ -18,6 +18,7 @@ import {
   Clock,
   Wallet,
   TrendingUp,
+  HandCoins,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { DashboardHeader } from '@/components/dashboard/dashboard-header';
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'المندوبين', href: '/dashboard/agents', icon: Users },
   { name: 'تقارير الأداء', href: '/dashboard/agents/performance', icon: TrendingUp },
   { name: 'المالية', href: '/dashboard/financial', icon: DollarSign },
+  { name: 'استلام المبالغ', href: '/dashboard/financial/receive-payments', icon: HandCoins },
   { name: 'التسويات المالية', href: '/dashboard/financial/settlements', icon: Wallet },
   { name: 'الباقات', href: '/dashboard/packages', icon: Package },
   { name: 'التجديدات', href: '/dashboard/renewals', icon: RefreshCw },

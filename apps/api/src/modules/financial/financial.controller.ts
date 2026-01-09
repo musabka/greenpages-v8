@@ -14,7 +14,7 @@ import { ApproveSettlementDto, RejectSettlementDto } from './dto/update-settleme
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class FinancialController {
-  constructor(private readonly financialService: FinancialService) {}
+  constructor(private readonly financialService: FinancialService) { }
 
   // =================== AGENT BALANCE & COMMISSIONS ===================
 

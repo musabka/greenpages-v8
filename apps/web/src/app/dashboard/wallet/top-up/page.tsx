@@ -112,7 +112,7 @@ export default function TopUpPage() {
             شحن المحفظة
           </h1>
           <p className="text-gray-500 mt-1">
-            اختر طريقة الشحن والمبلغ المراد إضافته
+            اشحن رصيدك للاستفادة من خدمات الصفحات الخضراء
           </p>
         </div>
 

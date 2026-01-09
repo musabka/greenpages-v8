@@ -12,7 +12,7 @@ import { UpdateCityDto } from './dto/update-city.dto';
 @ApiTags('cities')
 @Controller('cities')
 export class CitiesController {
-  constructor(private readonly citiesService: CitiesService) {}
+  constructor(private readonly citiesService: CitiesService) { }
 
   @Get()
   @Public()

@@ -76,9 +76,9 @@ echo Agent Dashboard starting on port 3004...
 REM Wait before starting next app
 timeout /t 2 /nobreak >nul
 
-REM Start Agent Dashboard
-start "GreenPages Agent" cmd /k "cd /d %~dp0apps\accountant && pnpm dev"
-echo Agent Dashboard starting on port 3005...
+REM Start Accountant Dashboard
+start "GreenPages Accountant" cmd /k "cd /d %~dp0apps\accountant && pnpm dev"
+echo Accountant Dashboard starting on port 3005...
 
 REM Wait for apps to initialize
 echo.

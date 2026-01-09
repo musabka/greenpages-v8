@@ -89,6 +89,18 @@ export class CommissionsService {
         },
       });
 
+      // ✅ إضافة العمولة إلى agentCollection لتحديث الرصيد الحالي
+      await this.prisma.agentCollection.create({
+        data: {
+          agentProfileId: agentProfile.id,
+          businessId: business.id,
+          amount: commissionAmount,
+          status: 'COLLECTED', // العمولة محصلة مباشرة
+          description: 'Commission',
+          notes: `عمولة اشتراك جديد - ${business.nameAr}`,
+        },
+      });
+
       // ✅ تسجيل القيد المحاسبي للعمولة
       try {
         await this.accountingService.createJournalEntry(business.agentId, {

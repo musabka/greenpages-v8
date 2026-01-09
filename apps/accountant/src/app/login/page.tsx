@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, Mail } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,26 +18,17 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-      const res = await fetch(`${baseUrl}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'فشل تسجيل الدخول');
-      }
+      const res = await api.post('/auth/login', { email, password });
+      const data = res.data;
 
       // تحقق من الدور
       if (data.user.role !== 'ACCOUNTANT' && data.user.role !== 'ADMIN') {
         throw new Error('غير مصرح لك بالدخول إلى لوحة تحكم المحاسب');
       }
 
-      // حفظ التوكن
-      localStorage.setItem('token', data.accessToken || data.access_token);
+      // حفظ التوكن - استخدام نفس أسماء التوكنات الموحدة
+      localStorage.setItem('token', data.accessToken);
+      localStorage.setItem('accessToken', data.accessToken);
       if (data.refreshToken) {
         localStorage.setItem('refreshToken', data.refreshToken);
       }
@@ -44,7 +36,7 @@ export default function LoginPage() {
 
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message);
+      setError(err.response?.data?.message || err.message || 'فشل تسجيل الدخول');
     } finally {
       setLoading(false);
     }

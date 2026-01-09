@@ -76,13 +76,15 @@ export class WalletAccountingBridge {
 
   /**
    * تسجيل عملية دفع من المحفظة (اشتراك / إعلان)
-   * 
+   *
    * القيد:
    *   مدين: WALLET_LIABILITY (تخفيض الالتزام)
    *   دائن: SUBSCRIPTION_REVENUE أو ADS_REVENUE (إيراد)
-   * 
+   *
    * إذا كانت هناك ضريبة:
    *   دائن إضافي: PLATFORM_TAX_PAYABLE
+   *
+   * يتم أيضاً إنشاء فاتورة للعميل تلقائياً
    */
   async recordWalletPayment(params: {
     userId: string;
@@ -97,7 +99,11 @@ export class WalletAccountingBridge {
     referenceName: string;
     governorateId?: string;
     businessId?: string;
-  }): Promise<void> {
+    customerName?: string;
+    customerEmail?: string;
+    customerPhone?: string;
+    taxId?: string;
+  }): Promise<{ journalEntryId: string; invoiceId: string }> {
     const {
       userId,
       paymentId,
@@ -111,47 +117,73 @@ export class WalletAccountingBridge {
       referenceName,
       governorateId,
       businessId,
+      customerName,
+      customerEmail,
+      customerPhone,
+      taxId,
     } = params;
 
-    // استخدام Policy Service للحصول على القيود
-    const lines = this.policyService.mapWalletPayment({
-      grossAmount,
-      taxAmount,
-      netAmount,
-      paymentType,
+    console.log('🧾 بدء إنشاء فاتورة...', {
+      userId,
+      paymentId,
       walletOwnerId,
-      governorateId,
-      businessId,
+      grossAmount,
+      netAmount,
+      referenceName,
     });
 
-    // التحقق من التوازن
-    this.policyService.validateBalance(lines);
-
-    await this.accountingService.createJournalEntry(userId, {
-      description: `Wallet payment for ${paymentType.toLowerCase()}: ${referenceName}`,
-      descriptionAr: `دفع ${this.getPaymentTypeNameAr(paymentType)}: ${referenceName}`,
-      sourceModule: AccSourceModule.WALLET,
-      sourceEventId: `PAYMENT-${paymentId}`,
-      sourceEntityType: 'WalletTransaction',
-      sourceEntityId: paymentId,
-      lines: lines.map(line => ({
-        ...line,
-        dimensions: line.dimensions as Record<string, string | undefined>,
-      })),
-      metadata: {
-        walletId,
-        walletOwnerId,
-        paymentType,
-        referenceId,
-        referenceName,
-        grossAmount,
-        taxAmount,
-        netAmount,
-        governorateId,
+    try {
+      // 1️⃣ إنشاء الفاتورة أولاً
+      console.log('📝 إنشاء فاتورة...');
+      const invoice = await this.accountingService.createInvoice(userId, {
+        customerId: walletOwnerId,
+        customerName: customerName || 'عميل',
+        customerEmail,
+        customerPhone,
         businessId,
-      },
-      autoPost: true,
-    });
+        invoiceType: 'SUBSCRIPTION',
+        dueDate: new Date(), // مستحق فوراً
+        notes: `Payment via wallet for ${referenceName}`,
+        notesAr: `دفع عبر المحفظة: ${referenceName}`,
+        lines: [
+          {
+            description: referenceName,
+            descriptionAr: referenceName,
+            quantity: 1,
+            unitPrice: netAmount,
+            taxId: taxId || undefined,
+          },
+        ],
+      });
+
+      console.log('✅ تم إنشاء الفاتورة:', invoice.id, invoice.invoiceNumber);
+
+      // 2️⃣ إصدار الفاتورة مباشرةً (تغيير الحالة من DRAFT إلى ISSUED وإنشاء القيد)
+      console.log('📤 إصدار الفاتورة...');
+      const issuedInvoice = await this.accountingService.issueInvoice(invoice.id, userId);
+      console.log('✅ تم إصدار الفاتورة، القيد المحاسبي:', issuedInvoice.journalEntryId);
+
+      // 3️⃣ تسجيل الدفع مباشرةً (الفاتورة مدفوعة بالكامل)
+      console.log('💰 تسجيل دفع الفاتورة...');
+      await this.accountingService.recordInvoicePayment(
+        invoice.id,
+        userId,
+        grossAmount,
+        'WALLET',
+      );
+
+      console.log('✅ تم تسجيل الدفع بنجاح');
+
+      return {
+        journalEntryId: issuedInvoice.journalEntryId || '',
+        invoiceId: issuedInvoice.id,
+      };
+    } catch (error) {
+      console.error('❌ فشل في إنشاء الفاتورة والقيد المحاسبي:', error);
+      console.error('تفاصيل الخطأ:', error instanceof Error ? error.message : error);
+      console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
+      throw error; // نعيد رمي الخطأ ليتم التعامل معه في المستوى الأعلى
+    }
   }
 
   /**
