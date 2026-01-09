@@ -326,7 +326,7 @@ export default function BusinessesPage() {
                         setSelectedBusinessId(id);
                         setShowOwnerLinkModal(true);
                       }}
-                      onDelete={handleDelete}
+                      onDelete={(id) => handleDelete(id, business.nameAr)}
                       viewPath="/businesses"
                       editPath="/businesses"
                     />

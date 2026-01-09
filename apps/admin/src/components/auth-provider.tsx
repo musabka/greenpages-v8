@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const me = await authApi.me();
-        setUser(me.data);
+        setUser(me.data as User);
         localStorage.setItem('user_data', JSON.stringify(me.data));
       } catch (error: any) {
         console.error('Auth check failed:', error);
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Store in cookie for middleware
       document.cookie = `token=${res.data.accessToken}; path=/; max-age=${30 * 24 * 60 * 60}`; // 30 days
       
-      setUser(res.data.user);
+      setUser(res.data.user as User);
       router.push('/');
     } catch (error) {
       console.error('Login failed:', error);

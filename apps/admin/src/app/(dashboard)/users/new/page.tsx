@@ -70,13 +70,10 @@ export default function NewUserPage() {
         governorateId: governorateId || undefined,
         cityId: cityId || undefined,
         districtId: districtId || undefined,
-        managedGovernorateIds: (role === 'GOVERNORATE_MANAGER' || role === 'AGENT') && managedGovernorateIds.length > 0 
-          ? managedGovernorateIds 
-          : undefined,
         companyCommissionRate: role === 'GOVERNORATE_MANAGER' ? Number(companyCommissionRate) : undefined,
         agentSalary: role === 'AGENT' ? Number(agentSalary) : undefined,
         agentCommission: role === 'AGENT' ? Number(agentCommission) : undefined,
-      });
+      } as any);
       router.push('/users');
     } catch {
       // handled in hook

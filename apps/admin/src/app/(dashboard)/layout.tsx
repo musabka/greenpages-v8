@@ -48,7 +48,9 @@ export default function DashboardLayout({
 
             {/* Right side placeholder for future actions */}
             <div className="hidden sm:block text-sm text-gray-600">
-              مرحباً، {user?.name ?? 'مسؤول'}
+              مرحباً، {user?.firstName && user?.lastName 
+                ? `${user.firstName} ${user.lastName}`
+                : user?.email ?? 'مسؤول'}
             </div>
           </div>
         </header>
