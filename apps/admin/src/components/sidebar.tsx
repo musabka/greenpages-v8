@@ -74,9 +74,15 @@ const navigation = [
   },
   { 
     name: 'الإدارة المالية', 
-    href: '/financial', 
     icon: DollarSign,
-    roles: ['ADMIN']  // المدير فقط
+    roles: ['ADMIN'],
+    children: [
+      { name: 'نظرة عامة', href: '/financial' },
+      { name: 'التسويات المالية', href: '/financial/settlements' },
+      { name: 'مدراء المحافظات', href: '/financial/managers' },
+      { name: 'المعاملات', href: '/financial/transactions' },
+      { name: 'التقارير المالية', href: '/financial/reports' },
+    ]
   },
   {
     name: 'المحفظة',
