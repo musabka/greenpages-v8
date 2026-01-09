@@ -13,6 +13,8 @@ import {
   TrendingUp,
   Printer,
   Eye,
+  AlertCircle,
+  Filter,
 } from 'lucide-react';
 import {
   useAgentFinancialSettlements,
@@ -50,6 +52,8 @@ const statusConfig = {
 export default function AgentSettlementsPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   
   const { data: settlementsData, isLoading } = useAgentFinancialSettlements({
     status: statusFilter || undefined,
@@ -61,6 +65,18 @@ export default function AgentSettlementsPage() {
 
   const settlements = (settlementsData?.data || []) as Settlement[];
   const totalPages = settlementsData?.meta?.totalPages || 1;
+
+  // Filter by date
+  const filteredSettlements = settlements.filter((s) => {
+    const settlementDate = new Date(s.createdAt);
+    const matchesDateFrom = !dateFrom || settlementDate >= new Date(dateFrom);
+    const matchesDateTo = !dateTo || settlementDate <= new Date(dateTo + 'T23:59:59');
+    return matchesDateFrom && matchesDateTo;
+  });
+
+  const pendingSettlements = filteredSettlements.filter(s => 
+    s.status === 'PENDING_MANAGER' || s.status === 'PENDING_AGENT'
+  );
 
   return (
     <div className="space-y-6">
@@ -81,58 +97,87 @@ export default function AgentSettlementsPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm p-5 border border-green-200">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-green-100 rounded-xl">
+            <div className="p-3 bg-white/60 rounded-xl">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">تسويات مؤكدة</p>
-              <p className="text-2xl font-bold text-gray-900">{summary?.confirmedCount || 0}</p>
+              <p className="text-sm text-green-700 font-medium">تسويات مؤكدة</p>
+              <p className="text-3xl font-bold text-green-900">{summary?.confirmedCount || 0}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl shadow-sm p-5 border border-yellow-200">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-yellow-100 rounded-xl">
+            <div className="p-3 bg-white/60 rounded-xl">
               <Clock className="w-6 h-6 text-yellow-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">تسويات معلقة</p>
-              <p className="text-2xl font-bold text-yellow-600">{summary?.pendingCount || 0}</p>
+              <p className="text-sm text-yellow-700 font-medium">تسويات معلقة</p>
+              <p className="text-3xl font-bold text-yellow-900">{summary?.pendingCount || 0}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm p-5 border border-blue-200">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-100 rounded-xl">
+            <div className="p-3 bg-white/60 rounded-xl">
               <DollarSign className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">إجمالي المُسلّم</p>
-              <p className="text-xl font-bold text-blue-600">
+              <p className="text-sm text-blue-700 font-medium">إجمالي المُسلّم</p>
+              <p className="text-lg font-bold text-blue-900">
                 {(summary?.totalDelivered || 0).toLocaleString()} ل.س
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm p-5 border border-purple-200">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-purple-100 rounded-xl">
+            <div className="p-3 bg-white/60 rounded-xl">
               <TrendingUp className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">إجمالي العمولات المدفوعة</p>
-              <p className="text-xl font-bold text-purple-600">
+              <p className="text-sm text-purple-700 font-medium">عمولاتي المدفوعة</p>
+              <p className="text-lg font-bold text-purple-900">
                 {(summary?.totalCommissionsPaid || 0).toLocaleString()} ل.س
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Pending Alert */}
+      {pendingSettlements.length > 0 && (
+        <div className="bg-yellow-50 border-r-4 border-yellow-500 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-bold text-yellow-900 mb-1">
+                لديك {pendingSettlements.length} تسوية معلقة
+              </h3>
+              <p className="text-sm text-yellow-700 mb-2">
+                هذه التسويات بانتظار مراجعة وتأكيد مدير المحافظة
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {pendingSettlements.map(s => (
+                  <Link
+                    key={s.id}
+                    href={`/dashboard/financial/settlements/${s.id}`}
+                    className="inline-flex items-center gap-2 text-xs font-medium text-yellow-800 bg-yellow-100 hover:bg-yellow-200 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <FileText className="w-3 h-3" />
+                    {s.settlementNumber}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Info Box */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
@@ -157,38 +202,101 @@ export default function AgentSettlementsPage() {
 
       {/* Filter */}
       <div className="bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setStatusFilter('')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === ''
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            الكل
-          </button>
-          <button
-            onClick={() => setStatusFilter('CONFIRMED')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === 'CONFIRMED'
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            المؤكدة
-          </button>
-          <button
-            onClick={() => setStatusFilter('PENDING_MANAGER')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === 'PENDING_MANAGER'
-                ? 'bg-yellow-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            المعلقة
-          </button>
+        <h3 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
+          <Filter className="w-5 h-5" />
+          الفلترة والبحث
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              حسب الحالة
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setStatusFilter('')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === ''
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                الكل ({settlements.length})
+              </button>
+              <button
+                onClick={() => setStatusFilter('CONFIRMED')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === 'CONFIRMED'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                المؤكدة ({settlements.filter(s => s.status === 'CONFIRMED').length})
+              </button>
+              <button
+                onClick={() => setStatusFilter('PENDING_MANAGER')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === 'PENDING_MANAGER'
+                    ? 'bg-yellow-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                المعلقة ({settlements.filter(s => s.status === 'PENDING_MANAGER' || s.status === 'PENDING_AGENT').length})
+              </button>
+              <button
+                onClick={() => setStatusFilter('CANCELLED')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === 'CANCELLED'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                الملغاة ({settlements.filter(s => s.status === 'CANCELLED').length})
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              من تاريخ
+            </label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              إلى تاريخ
+            </label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
+
+        {(dateFrom || dateTo) && (
+          <div className="pt-3 border-t flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              عدد النتائج: <span className="font-bold">{filteredSettlements.length}</span>
+            </p>
+            <button
+              onClick={() => {
+                setDateFrom('');
+                setDateTo('');
+              }}
+              className="text-sm text-red-600 hover:text-red-700 font-medium"
+            >
+              مسح فلتر التاريخ
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Settlements List */}
@@ -197,17 +305,22 @@ export default function AgentSettlementsPage() {
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : settlements.length === 0 ? (
+        ) : filteredSettlements.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">لا توجد تسويات مالية</p>
+            <p className="text-gray-500">
+              {dateFrom || dateTo ? 'لا توجد نتائج تطابق معايير البحث' : 'لا توجد تسويات مالية'}
+            </p>
             <p className="text-sm text-gray-400 mt-1">
-              ستظهر التسويات هنا عند إجراء تسوية مالية مع مدير المحافظة
+              {dateFrom || dateTo 
+                ? 'جرب تغيير فلاتر التاريخ'
+                : 'ستظهر التسويات هنا عند إجراء تسوية مالية مع مدير المحافظة'
+              }
             </p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {settlements.map((settlement) => {
+            {filteredSettlements.map((settlement) => {
               const config = statusConfig[settlement.status];
               const StatusIcon = config.icon;
 

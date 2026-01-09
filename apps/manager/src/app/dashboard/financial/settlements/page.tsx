@@ -181,6 +181,8 @@ export default function ManagerSettlementsPage() {
   const [status, setStatus] = useState<string>('');
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Agent settlements (manager receives from agents)
   const { data: agentData, isLoading: loadingAgent } = useAgentFinancialSettlements({
@@ -209,6 +211,34 @@ export default function ManagerSettlementsPage() {
     ? (agentData?.meta?.totalPages || 1)
     : (adminData?.meta?.totalPages || 1);
   const isLoading = activeTab === 'agent' ? loadingAgent : loadingAdmin;
+
+  // Filter settlements based on search and date
+  const filteredSettlements = settlements.filter((s: any) => {
+    const matchesSearch = !search || s.settlementNumber?.toLowerCase().includes(search.toLowerCase());
+    const settlementDate = new Date(s.createdAt);
+    const matchesDateFrom = !dateFrom || settlementDate >= new Date(dateFrom);
+    const matchesDateTo = !dateTo || settlementDate <= new Date(dateTo + 'T23:59:59');
+    return matchesSearch && matchesDateFrom && matchesDateTo;
+  });
+
+  // Calculate statistics
+  const statistics = {
+    total: filteredSettlements.length,
+    pending: filteredSettlements.filter((s: any) => 
+      s.status === 'PENDING_MANAGER' || s.status === 'PENDING_ADMIN'
+    ).length,
+    confirmed: filteredSettlements.filter((s: any) => s.status === 'CONFIRMED').length,
+    cancelled: filteredSettlements.filter((s: any) => s.status === 'CANCELLED').length,
+    totalAmount: filteredSettlements
+      .filter((s: any) => s.status === 'CONFIRMED')
+      .reduce((sum: number, s: any) => sum + Number(s.totalAmount || 0), 0),
+    pendingAmount: filteredSettlements
+      .filter((s: any) => s.status === 'PENDING_MANAGER' || s.status === 'PENDING_ADMIN')
+      .reduce((sum: number, s: any) => sum + Number(s.totalAmount || 0), 0),
+    totalCommissions: filteredSettlements
+      .filter((s: any) => s.status === 'CONFIRMED')
+      .reduce((sum: number, s: any) => sum + Number(s.agentCommissionAmount || 0), 0),
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -291,6 +321,11 @@ export default function ManagerSettlementsPage() {
           <div className="flex items-center gap-2">
             <User className="w-4 h-4" />
             تسويات المندوبين
+            {statistics.pending > 0 && (
+              <span className="bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
+                {statistics.pending}
+              </span>
+            )}
           </div>
         </button>
         <button
@@ -308,83 +343,221 @@ export default function ManagerSettlementsPage() {
         </button>
       </div>
 
+      {/* Pending Settlements Alert */}
+      {activeTab === 'agent' && statistics.pending > 0 && (
+        <div className="bg-yellow-50 border-r-4 border-yellow-500 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <Clock className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-bold text-yellow-900 mb-1">
+                لديك {statistics.pending} تسوية معلقة بانتظار التأكيد
+              </h3>
+              <p className="text-sm text-yellow-700 mb-3">
+                هذه التسويات بحاجة لمراجعتك وتأكيدك. المبلغ الإجمالي المعلق: {formatNumber(statistics.pendingAmount)} ل.س
+              </p>
+              <button
+                onClick={() => setStatus('PENDING_MANAGER')}
+                className="text-sm font-medium text-yellow-800 hover:text-yellow-900 underline"
+              >
+                عرض التسويات المعلقة فقط ←
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[200px]">
-          <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+      <div className="bg-white rounded-lg shadow-sm p-4">
+        <h3 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
+          <Search className="w-5 h-5" />
+          البحث والفلترة
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              رقم التسوية
+            </label>
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="ابحث برقم التسوية..."
+                className="w-full pr-10 pl-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              الحالة
+            </label>
+            <select
+              value={status}
+              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500"
+            >
+              <option value="">كل الحالات</option>
+              <option value="DRAFT">مسودة</option>
+              <option value="PENDING_MANAGER">بانتظار المدير</option>
+              <option value="PENDING_ADMIN">بانتظار الإدارة</option>
+              <option value="CONFIRMED">مؤكدة</option>
+              <option value="CANCELLED">ملغية</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              من تاريخ
+            </label>
             <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث برقم التسوية..."
-              className="w-full pr-10 pl-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              إلى تاريخ
+            </label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500"
             />
           </div>
         </div>
-        <select
-          value={status}
-          onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-          className="border rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500"
-        >
-          <option value="">كل الحالات</option>
-          <option value="DRAFT">مسودة</option>
-          <option value="PENDING_MANAGER">بانتظار المدير</option>
-          <option value="PENDING_ADMIN">بانتظار الإدارة</option>
-          <option value="CONFIRMED">مؤكدة</option>
-          <option value="CANCELLED">ملغية</option>
-        </select>
+
+        {(search || status || dateFrom || dateTo) && (
+          <div className="mt-4 pt-4 border-t flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              عدد النتائج: <span className="font-bold text-gray-900">{filteredSettlements.length}</span>
+            </p>
+            <button
+              onClick={() => {
+                setSearch('');
+                setStatus('');
+                setDateFrom('');
+                setDateTo('');
+              }}
+              className="text-sm text-red-600 hover:text-red-700 font-medium"
+            >
+              مسح الفلاتر
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <FileText className="w-5 h-5 text-blue-600" />
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow-sm p-4 border border-blue-200">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">إجمالي التسويات</p>
-              <p className="text-xl font-bold text-gray-900">{total}</p>
+              <p className="text-sm text-blue-700 font-medium mb-1">إجمالي التسويات</p>
+              <p className="text-3xl font-bold text-blue-900">{statistics.total}</p>
+              <p className="text-xs text-blue-600 mt-1">من أصل {total} تسوية</p>
+            </div>
+            <div className="p-3 bg-white/50 rounded-lg">
+              <FileText className="w-8 h-8 text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Clock className="w-5 h-5 text-yellow-600" />
-            </div>
+        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg shadow-sm p-4 border border-yellow-200">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">بانتظار التأكيد</p>
-              <p className="text-xl font-bold text-gray-900">
-                {settlements.filter((s: any) => 
-                  s.status === 'PENDING_MANAGER' || s.status === 'PENDING_ADMIN'
-                ).length}
+              <p className="text-sm text-yellow-700 font-medium mb-1">بانتظار التأكيد</p>
+              <p className="text-3xl font-bold text-yellow-900">{statistics.pending}</p>
+              <p className="text-xs text-yellow-600 mt-1">
+                {formatNumber(statistics.pendingAmount)} ل.س
               </p>
+            </div>
+            <div className="p-3 bg-white/50 rounded-lg">
+              <Clock className="w-8 h-8 text-yellow-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="w-5 h-5 text-green-600" />
-            </div>
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow-sm p-4 border border-green-200">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">إجمالي المبالغ المؤكدة</p>
-              <p className="text-xl font-bold text-gray-900">
-                {formatNumber(
-                  settlements
-                    .filter((s: any) => s.status === 'CONFIRMED')
-                    .reduce((sum: number, s: any) => sum + Number(s.totalAmount || 0), 0)
-                )}{' '}
-                ل.س
+              <p className="text-sm text-green-700 font-medium mb-1">تسويات مؤكدة</p>
+              <p className="text-3xl font-bold text-green-900">{statistics.confirmed}</p>
+              <p className="text-xs text-green-600 mt-1">
+                {formatNumber(statistics.totalAmount)} ل.س
               </p>
+            </div>
+            <div className="p-3 bg-white/50 rounded-lg">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow-sm p-4 border border-purple-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-purple-700 font-medium mb-1">العمولات المدفوعة</p>
+              <p className="text-2xl font-bold text-purple-900">
+                {formatNumber(statistics.totalCommissions)}
+              </p>
+              <p className="text-xs text-purple-600 mt-1">ليرة سورية</p>
+            </div>
+            <div className="p-3 bg-white/50 rounded-lg">
+              <DollarSign className="w-8 h-8 text-purple-600" />
             </div>
           </div>
         </div>
       </div>
+
+      {/* Additional Statistics */}
+      {activeTab === 'agent' && (
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <h3 className="font-medium text-gray-900 mb-4">إحصائيات تفصيلية</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <XCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">تسويات ملغية</p>
+                <p className="text-xl font-bold text-gray-900">{statistics.cancelled}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <DollarSign className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">متوسط مبلغ التسوية</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {statistics.confirmed > 0 
+                    ? formatNumber(Math.round(statistics.totalAmount / statistics.confirmed))
+                    : '0'} ل.س
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="p-2 bg-teal-100 rounded-lg">
+                <DollarSign className="w-5 h-5 text-teal-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">متوسط العمولة</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {statistics.confirmed > 0
+                    ? formatNumber(Math.round(statistics.totalCommissions / statistics.confirmed))
+                    : '0'} ل.س
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -392,11 +565,15 @@ export default function ManagerSettlementsPage() {
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : settlements.length === 0 ? (
+        ) : filteredSettlements.length === 0 ? (
           <div className="text-center py-12">
             <DollarSign className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">لا توجد تسويات</p>
-            {activeTab === 'agent' && (
+            <p className="text-gray-500">
+              {search || status || dateFrom || dateTo 
+                ? 'لا توجد نتائج تطابق معايير البحث'
+                : 'لا توجد تسويات'}
+            </p>
+            {activeTab === 'agent' && !search && !status && !dateFrom && !dateTo && (
               <button
                 onClick={() => setShowNewModal(true)}
                 className="mt-4 text-green-600 hover:text-green-700 font-medium"
@@ -430,7 +607,7 @@ export default function ManagerSettlementsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {settlements.map((settlement: any) => (
+                  {filteredSettlements.map((settlement: any) => (
                     <tr key={settlement.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <span className="font-mono text-sm text-gray-900">
