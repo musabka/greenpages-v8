@@ -1,15 +1,10 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CommissionType, CommissionStatus } from '@greenpages/database';
-import { AccountingService } from '../accounting/accounting.service';
 
 @Injectable()
 export class CommissionsService {
-  constructor(
-    private prisma: PrismaService,
-    @Inject(forwardRef(() => AccountingService))
-    private readonly accountingService: AccountingService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   /**
    * حساب وإنشاء العمولات للبيزنس
@@ -101,40 +96,8 @@ export class CommissionsService {
         },
       });
 
-      // ✅ تسجيل القيد المحاسبي للعمولة
-      try {
-        await this.accountingService.createJournalEntry(business.agentId, {
-          description: 'Agent commission earned for new subscription',
-          descriptionAr: `عمولة مندوب - اشتراك جديد`,
-          sourceModule: 'COMMISSIONS' as any,
-          sourceEventId: `COMMISSION-${commission.id}`,
-          sourceEntityType: 'AgentCommission',
-          sourceEntityId: commission.id,
-          lines: [
-            {
-              accountCode: '5200', // COMMISSIONS_EXPENSE
-              debit: commissionAmount,
-              credit: 0,
-              memo: `عمولة ${agentProfile.id}`,
-            },
-            {
-              accountCode: '2200', // AGENT_PAYABLE
-              debit: 0,
-              credit: commissionAmount,
-              memo: `مستحق للمندوب`,
-            },
-          ],
-          metadata: {
-            agentProfileId: agentProfile.id,
-            businessId,
-            commissionRate,
-            subscriptionAmount: packagePrice,
-          },
-          autoPost: true,
-        });
-      } catch (error) {
-        console.error('⚠️ Failed to record accounting entry for commission:', error);
-      }
+      // ✅ العمولة مسجلة (لم تعد هناك حاجة لقيود محاسبية)
+      console.log('✅ Commission recorded for agent:', agentProfile.id);
 
       console.log('Commission created:', {
         businessId,

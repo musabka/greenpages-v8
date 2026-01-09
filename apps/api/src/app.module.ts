@@ -57,8 +57,8 @@ import { CapabilitiesModule } from './modules/capabilities/capabilities.module';
 // Wallet Module
 import { WalletModule } from './modules/wallet/wallet.module';
 
-// Accounting Module
-import { AccountingModule } from './modules/accounting/accounting.module';
+// Billing Module (بديل Accounting المبسط)
+import { BillingModule } from './modules/billing/billing.module';
 
 // Utility Modules
 import { UploadModule } from './modules/upload/upload.module';
@@ -141,8 +141,8 @@ import { RedisModule } from '@nestjs-modules/ioredis';
     // Wallet
     WalletModule,
 
-    // Accounting
-    AccountingModule,
+    // Billing (بديل Accounting المبسط)
+    BillingModule,
 
     // Utility
     UploadModule,

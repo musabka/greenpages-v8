@@ -29,15 +29,15 @@ import {
   AdminTopUpsQueryDto,
   AdminWithdrawalsQueryDto,
 } from './dto/wallet.dto';
-import { WalletAccountingBridge } from './wallet-accounting.bridge';
+import { WalletBillingBridge } from './wallet-billing.bridge';
 import { PackagesService } from '../packages/packages.service';
 
 @Injectable()
 export class WalletService {
   constructor(
     private prisma: PrismaService,
-    @Inject(forwardRef(() => WalletAccountingBridge))
-    private readonly accountingBridge: WalletAccountingBridge,
+    @Inject(forwardRef(() => WalletBillingBridge))
+    private readonly billingBridge: WalletBillingBridge,
     @Inject(forwardRef(() => PackagesService))
     private readonly packagesService: PackagesService,
   ) {}
@@ -350,7 +350,7 @@ export class WalletService {
 
     // ✅ استخدام PackagesService لتعيين الباقة (خارج transaction لتجنب deadlock)
     // هذا يضمن تسجيل PackageHistory وإنشاء عمولة المندوب بشكل صحيح
-    // skipInvoice: true لأن WalletAccountingBridge سيتولى إنشاء الفاتورة
+    // skipInvoice: true لأن WalletBillingBridge سيتولى إنشاء الفاتورة
     const updatedPackage = await this.packagesService.assignPackage(
       {
         businessId: dto.businessId,
@@ -364,9 +364,8 @@ export class WalletService {
 
     const { transaction, balanceAfter } = result;
 
-    // ✅ تسجيل القيد المحاسبي وإنشاء الفاتورة
+    // ✅ تسجيل الفاتورة
     let invoiceId: string | undefined;
-    let journalEntryId: string | undefined;
 
     // جلب بيانات المستخدم خارج try/catch للاستخدام في المحاولة الثانية
     const user = await this.prisma.user.findUnique({
@@ -374,24 +373,23 @@ export class WalletService {
       select: { firstName: true, lastName: true, email: true, phone: true },
     });
 
-        console.log('🔵 WalletService: سنبدأ بإنشاء الفاتورة الآن...', {
+    console.log('🔵 WalletService: سنبدأ بإنشاء الفاتورة الآن...', {
       userId: wallet.userId,
       amount,
       packageName: packageData.nameAr,
       businessId: dto.businessId,
-      accountingBridgeExists: !!this.accountingBridge,
-      accountingBridgeType: typeof this.accountingBridge,
+      billingBridgeExists: !!this.billingBridge,
     });
 
-    if (!this.accountingBridge) {
-      console.error('❌❌❌ CRITICAL: WalletAccountingBridge غير موجود! لن يتم إنشاء الفاتورة.');
+    if (!this.billingBridge) {
+      console.error('❌❌❌ CRITICAL: WalletBillingBridge غير موجود! لن يتم إنشاء الفاتورة.');
       console.error('❌❌❌ this:', Object.keys(this));
-      throw new Error('WalletAccountingBridge is not injected - CRITICAL ERROR');
+      throw new Error('WalletBillingBridge is not injected - CRITICAL ERROR');
     }
 
     try {
-      console.log('🟢 WalletService: استدعاء accountingBridge.recordWalletPayment...');
-      const accountingResult = await this.accountingBridge.recordWalletPayment({
+      console.log('🟢 WalletService: استدعاء billingBridge.recordWalletPayment...');
+      const billingResult = await this.billingBridge.recordWalletPayment({
         userId: wallet.userId,
         paymentId: transaction.id,
         walletId: wallet.id,
@@ -411,9 +409,8 @@ export class WalletService {
         taxId: undefined,
       });
 
-      invoiceId = accountingResult.invoiceId;
-      journalEntryId = accountingResult.journalEntryId;
-      console.log('✅ تم إنشاء الفاتورة بنجاح:', { invoiceId, journalEntryId });
+      invoiceId = billingResult.invoiceId;
+      console.log('✅ تم إنشاء الفاتورة بنجاح:', { invoiceId });
     } catch (error) {
       console.error('❌❌❌ CRITICAL: فشل إنشاء الفاتورة!', error);
       console.error('الخطأ الكامل:', error instanceof Error ? error.message : JSON.stringify(error));
@@ -425,8 +422,7 @@ export class WalletService {
         console.error('🔴 Error Message:', error.message);
       }
       
-      // IMPORTANT: لا نتابع بدون فاتورة - هذا خطر على النظام المحاسبي
-      // بدلاً من ذلك، نعيد رفع الخطأ حتى يراه المستخدم/المطور
+      // IMPORTANT: لا نتابع بدون فاتورة
       throw new Error(`فشل إنشاء الفاتورة: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
@@ -447,9 +443,8 @@ export class WalletService {
         remainingValue,
         originalPrice: Number(packageData.price),
       },
-      accounting: {
+      billing: {
         invoiceId,
-        journalEntryId,
       },
     };
   }
@@ -715,9 +710,9 @@ export class WalletService {
       return { wallet, amount, balanceAfter };
     });
 
-    // ✅ تسجيل القيد المحاسبي (خارج الـ transaction للسماح بـ retry)
+    // ✅ تسجيل الشحن (خارج الـ transaction)
     try {
-      await this.accountingBridge.recordTopUpApproval({
+      await this.billingBridge.recordTopUpApproval({
         userId: adminUserId,
         topUpId: topUpId,
         walletId: result.wallet.id,
@@ -727,7 +722,7 @@ export class WalletService {
       });
     } catch (error) {
       // log but don't fail - the wallet transaction is already complete
-      console.error('⚠️ Failed to record accounting entry for top-up:', error);
+      console.error('⚠️ Failed to record top-up:', error);
     }
 
     return { success: true, newBalance: result.balanceAfter };

@@ -7,8 +7,7 @@ import { AssignPackageDto } from './dto/assign-package.dto';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { Decimal } from '@prisma/client/runtime/library';
-import { WalletAccountingBridge } from '../wallet/wallet-accounting.bridge';
-import { AccountingService } from '../accounting/accounting.service';
+import { BillingService } from '../billing/billing.service';
 
 // Cache TTL in seconds (5 minutes)
 const PACKAGE_CACHE_TTL = 300;
@@ -20,8 +19,7 @@ export class PackagesService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectRedis() private readonly redis: Redis,
-    private readonly accountingBridge: WalletAccountingBridge,
-    private readonly accountingService: AccountingService,
+    private readonly billingService: BillingService,
   ) {}
 
   async createPackage(data: CreatePackageDto): Promise<Package> {
@@ -281,7 +279,7 @@ export class PackagesService {
     await this.invalidateBusinessPackageCache(businessId);
     
     // إنشاء فاتورة للباقة (فقط إذا كانت الباقة غير مجانية ولم يتم تخطي إنشاء الفاتورة)
-    // skipInvoice: يستخدم عندما يتم الدفع من المحفظة لأن WalletAccountingBridge يتولى إنشاء الفاتورة
+    // skipInvoice: يستخدم عندما يتم الدفع من المحفظة لأن WalletBillingBridge يتولى إنشاء الفاتورة
     if (!pkg.isDefault && Number(pkg.price) > 0 && !options?.skipInvoice) {
       try {
         console.log(`📄 Creating package invoice for business: ${businessId}`);
@@ -313,14 +311,16 @@ export class PackagesService {
           const customerEmail = business.owner?.email;
           const customerPhone = business.owner?.phone;
           
-          // المُنشئ هو المستخدم الذي قام بتعيين/تجديد الباقة (Agent/Admin/User)
-          // مهم: لا نستخدم business.agentId هنا لأن هذا يخلط "من نفّذ العملية" مع "المندوب المرتبط بالنشاط".
+          // المُنشئ هو المستخدم الذي قام بتعيين/تجديد الباقة
           const createdById = userId ?? business.agentId;
           
           if (customerId && createdById) {
-            const invoice = await this.accountingService.createInvoice(createdById, {
+            // استخدام BillingService للفوترة المبسطة
+            const paymentMethod = userRole === UserRole.AGENT ? 'CASH' : 'WALLET';
+            
+            const invoice = await this.billingService.createInvoice({
+              userId: customerId,
               businessId,
-              customerId,
               customerName,
               customerEmail,
               customerPhone,
@@ -333,18 +333,16 @@ export class PackagesService {
                   unitPrice: Number(pkg.price),
                 },
               ],
-              notesAr: `فاتورة اشتراك الباقة ${pkg.nameAr} للنشاط التجاري: ${business.nameAr}`,
+              notes: `فاتورة اشتراك الباقة ${pkg.nameAr} للنشاط التجاري: ${business.nameAr}`,
             });
             console.log(`✅ Package invoice created: ${invoice.invoiceNumber} - Status: ${invoice.status}`);
             
-            // ✅ إصدار الفاتورة تلقائياً (تغيير من DRAFT إلى ISSUED)
-            const issuedInvoice = await this.accountingService.issueInvoice(invoice.id, createdById);
+            // إصدار الفاتورة
+            const issuedInvoice = await this.billingService.issueInvoice(invoice.id);
             console.log(`✅ Invoice issued - New Status: ${issuedInvoice.status}`);
             
-            // ✅ دائماً نحول الفاتورة إلى PAID مباشرة
-            // المندوب يحصّل نقدياً، والمستخدم/الأدمن يدفع مباشرة
-            const paymentMethod = userRole === UserRole.AGENT ? 'CASH' : 'WALLET';
-            const paymentResult = await this.accountingService.recordInvoicePayment(
+            // تسجيل الدفع
+            const paymentResult = await this.billingService.recordPayment(
               invoice.id,
               createdById,
               Number(pkg.price),

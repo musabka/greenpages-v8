@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole, VisitStatus, VisitPurpose, CommissionType } from '@greenpages/database';
 import { WalletService } from '../wallet/wallet.service';
 import { PackagesService } from '../packages/packages.service';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class AgentPortalService {
@@ -11,6 +12,7 @@ export class AgentPortalService {
     @Inject(forwardRef(() => WalletService))
     private walletService: WalletService,
     private readonly packagesService: PackagesService,
+    private readonly billingService: BillingService,
   ) { }
 
   /**
@@ -818,7 +820,7 @@ export class AgentPortalService {
       );
 
       console.log('✅ تم الدفع من المحفظة بنجاح', {
-        invoiceId: walletPaymentResult.accounting?.invoiceId,
+        invoiceId: walletPaymentResult.billing?.invoiceId,
         transactionId: walletPaymentResult.transaction?.id,
       });
 
@@ -871,27 +873,26 @@ export class AgentPortalService {
 
       console.log('✅ تم تسجيل التحصيل النقدي للمندوب');
 
-      // ✅ إنشاء فاتورة باستخدام نفس آلية المحاسبة
-      const { AccountingService } = await import('../accounting/accounting.service');
-      const accountingService = new AccountingService(
-        this.prisma,
-        null as any,
-      );
-
-      const invoice = await accountingService.createInvoice(userId, {
+      // ✅ إنشاء فاتورة باستخدام BillingService
+      const invoice = await this.billingService.createInvoice(business.ownerId, {
         customerId: business.ownerId,
-        customerName: `${business.owner.firstName} ${business.owner.lastName}`,
         businessId,
+        customerName: `${business.owner.firstName} ${business.owner.lastName}`,
         invoiceType: 'SUBSCRIPTION',
         notes: data.notes,
         lines: [
           {
             description: `تجديد باقة ${packageData.nameAr}`,
+            descriptionAr: `تجديد باقة ${packageData.nameAr}`,
             quantity: 1,
             unitPrice: Number(packageData.price),
           },
         ],
       });
+
+      // إصدار ودفع الفاتورة
+      await this.billingService.issueInvoice(invoice.id, userId);
+      await this.billingService.recordPayment(invoice.id, userId, Number(packageData.price), 'CASH');
 
       console.log('✅ تم إنشاء الفاتورة بنجاح', { invoiceId: invoice.id });
 
@@ -907,7 +908,7 @@ export class AgentPortalService {
           id: collection.id,
           amount: Number(collection.amount),
         },
-        accounting: {
+        billing: {
           invoiceId: invoice.id,
         },
       };
