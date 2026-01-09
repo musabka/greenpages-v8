@@ -1437,6 +1437,7 @@ export class GovernorateManagerService {
           pendingCollectionsResult,
           totalSubmittedResult,
           lastCollection,
+          pendingCommissionsResult,
         ] = await Promise.all([
           // إجمالي المقبوضات
           this.prisma.agentCollection.aggregate({
@@ -1466,7 +1467,19 @@ export class GovernorateManagerService {
             orderBy: { collectedAt: 'desc' },
             select: { collectedAt: true, amount: true },
           }),
+          // العمولات المستحقة غير المدفوعة
+          this.prisma.agentCommission.aggregate({
+            where: {
+              agentProfileId: agent.id,
+              status: { in: ['PENDING', 'APPROVED'] },
+            },
+            _sum: { commissionAmount: true },
+            _count: true,
+          }),
         ]);
+
+        const pendingAmount = Number(pendingCollectionsResult._sum.amount || 0);
+        const pendingCommissions = Number(pendingCommissionsResult._sum.commissionAmount || 0);
 
         return {
           id: agent.id,
@@ -1474,8 +1487,13 @@ export class GovernorateManagerService {
           user: agent.user,
           governorates: agent.governorates.map(g => g.governorate.nameAr),
           commissionRate: Number(agent.commissionRate),
+          // البيانات المالية للتسوية
+          pendingAmount,
+          pendingCommissions,
+          pendingCommissionsCount: pendingCommissionsResult._count || 0,
+          netAmount: pendingAmount - pendingCommissions,
           balance: {
-            currentBalance: Number(pendingCollectionsResult._sum.amount || 0),
+            currentBalance: pendingAmount,
             pendingCollectionsCount: pendingCollectionsResult._count || 0,
             totalCollected: Number(totalCollectedResult._sum.amount || 0),
             totalSubmitted: Number(totalSubmittedResult._sum.totalAmount || 0),

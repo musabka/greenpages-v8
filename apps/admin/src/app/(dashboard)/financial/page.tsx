@@ -141,9 +141,26 @@ export default function AdminFinancialPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Link 
-          href="/financial/managers"
+          href="/dashboard/financial/settlements"
+          className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl p-6 hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-lg"
+        >
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/20 rounded-lg">
+              <HandCoins className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">التسويات المالية</h3>
+              <p className="text-sm text-indigo-100 mt-1">
+                تسويات مدراء المحافظات
+              </p>
+            </div>
+          </div>
+        </Link>
+
+        <Link 
+          href="/dashboard/financial/managers"
           className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl p-6 hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg"
         >
           <div className="flex items-center gap-4">
@@ -160,12 +177,12 @@ export default function AdminFinancialPage() {
         </Link>
 
         <Link 
-          href="/financial/transactions"
+          href="/dashboard/financial/transactions"
           className="bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl p-6 hover:from-green-700 hover:to-green-800 transition-all shadow-lg"
         >
           <div className="flex items-center gap-4">
             <div className="p-3 bg-white/20 rounded-lg">
-              <HandCoins className="w-8 h-8" />
+              <DollarSign className="w-8 h-8" />
             </div>
             <div>
               <h3 className="text-lg font-bold">سجل المعاملات</h3>
@@ -177,7 +194,7 @@ export default function AdminFinancialPage() {
         </Link>
 
         <Link 
-          href="/financial/reports"
+          href="/dashboard/financial/reports"
           className="bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl p-6 hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg"
         >
           <div className="flex items-center gap-4">

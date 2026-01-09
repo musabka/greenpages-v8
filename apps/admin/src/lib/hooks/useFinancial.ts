@@ -59,3 +59,113 @@ export function useReceivePayment() {
     },
   });
 }
+
+// =================== MANAGER SETTLEMENTS ===================
+
+/**
+ * الحصول على جميع تسويات مدراء المحافظات
+ */
+export function useAllManagerSettlements(params?: { 
+  status?: string; 
+  page?: number; 
+  limit?: number;
+}) {
+  return useQuery({
+    queryKey: ['all-manager-settlements', params],
+    queryFn: async () => {
+      const response = await api.get('/financial-settlements/manager/all', { params });
+      return response.data;
+    },
+  });
+}
+
+/**
+ * تفاصيل تسوية مدير
+ */
+export function useManagerSettlementDetails(settlementId: string | null) {
+  return useQuery({
+    queryKey: ['manager-settlement-details', settlementId],
+    queryFn: async () => {
+      if (!settlementId) return null;
+      const response = await api.get(`/financial-settlements/manager/${settlementId}`);
+      return response.data;
+    },
+    enabled: !!settlementId,
+  });
+}
+
+/**
+ * إنشاء تسوية مالية لمدير محافظة
+ */
+export function useCreateManagerSettlement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ 
+      managerId, 
+      periodStart, 
+      periodEnd, 
+      notes 
+    }: { 
+      managerId: string; 
+      periodStart: string; 
+      periodEnd: string; 
+      notes?: string;
+    }) => {
+      const response = await api.post(`/financial-settlements/manager/${managerId}`, { 
+        periodStart, 
+        periodEnd, 
+        notes 
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-manager-settlements'] });
+      queryClient.invalidateQueries({ queryKey: ['manager-balances'] });
+    },
+  });
+}
+
+/**
+ * تأكيد تسوية المدير
+ */
+export function useConfirmManagerSettlement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ 
+      settlementId, 
+      notes, 
+      signature 
+    }: { 
+      settlementId: string; 
+      notes?: string; 
+      signature?: string;
+    }) => {
+      const response = await api.put(`/financial-settlements/manager/${settlementId}/confirm`, { 
+        notes, 
+        signature 
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-manager-settlements'] });
+      queryClient.invalidateQueries({ queryKey: ['manager-balances'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-overview'] });
+    },
+  });
+}
+
+/**
+ * إلغاء تسوية المدير
+ */
+export function useCancelManagerSettlement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (settlementId: string) => {
+      const response = await api.delete(`/financial-settlements/manager/${settlementId}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-manager-settlements'] });
+    },
+  });
+}

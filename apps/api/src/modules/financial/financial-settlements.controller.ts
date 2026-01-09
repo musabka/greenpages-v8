@@ -26,7 +26,7 @@ export class FinancialSettlementsController {
   @ApiOperation({ summary: 'إنشاء تسوية مالية جديدة للمندوب' })
   @ApiResponse({ status: 201, description: 'تم إنشاء التسوية بنجاح' })
   async createAgentSettlement(@Request() req, @Body() dto: CreateAgentFinancialSettlementDto) {
-    return this.settlementsService.createAgentSettlement(req.user.userId, dto);
+    return this.settlementsService.createAgentSettlement(req.user.id, dto);
   }
 
   @Put('agent/:id/confirm')
@@ -38,7 +38,7 @@ export class FinancialSettlementsController {
     @Param('id') id: string,
     @Body() dto: ConfirmAgentSettlementDto,
   ) {
-    return this.settlementsService.confirmAgentSettlementByManager(id, req.user.userId, dto);
+    return this.settlementsService.confirmAgentSettlementByManager(id, req.user.id, dto);
   }
 
   @Get('agent/my-settlements')
@@ -53,14 +53,14 @@ export class FinancialSettlementsController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.settlementsService.getAgentSettlements(req.user.userId, { status, page, limit });
+    return this.settlementsService.getAgentSettlements(req.user.id, { status, page, limit });
   }
 
   @Get('agent/my-summary')
   @Roles(UserRole.AGENT)
   @ApiOperation({ summary: 'ملخص تسوياتي كمندوب' })
   async getMyAgentSettlementsSummary(@Request() req) {
-    return this.settlementsService.getAgentSettlementsSummary(req.user.userId);
+    return this.settlementsService.getAgentSettlementsSummary(req.user.id);
   }
 
   @Get('agent/manager-view')
@@ -75,7 +75,7 @@ export class FinancialSettlementsController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.settlementsService.getAgentSettlementsByManager(req.user.userId, { status, page, limit });
+    return this.settlementsService.getAgentSettlementsByManager(req.user.id, { status, page, limit });
   }
 
   @Get('agent/:id')
@@ -91,7 +91,7 @@ export class FinancialSettlementsController {
   @ApiOperation({ summary: 'إلغاء تسوية المندوب' })
   @ApiParam({ name: 'id', description: 'معرف التسوية' })
   async cancelAgentSettlement(@Request() req, @Param('id') id: string) {
-    return this.settlementsService.cancelSettlement(id, 'agent', req.user.userId);
+    return this.settlementsService.cancelSettlement(id, 'agent', req.user.id);
   }
 
   // =================== MANAGER SETTLEMENTS ===================
@@ -106,7 +106,7 @@ export class FinancialSettlementsController {
     @Param('managerId') managerId: string,
     @Body() dto: CreateManagerFinancialSettlementDto,
   ) {
-    return this.settlementsService.createManagerSettlement(req.user.userId, managerId, dto);
+    return this.settlementsService.createManagerSettlement(req.user.id, managerId, dto);
   }
 
   @Put('manager/:id/confirm')
@@ -118,7 +118,7 @@ export class FinancialSettlementsController {
     @Param('id') id: string,
     @Body() dto: ConfirmManagerSettlementDto,
   ) {
-    return this.settlementsService.confirmManagerSettlementByAdmin(id, req.user.userId, dto);
+    return this.settlementsService.confirmManagerSettlementByAdmin(id, req.user.id, dto);
   }
 
   @Get('manager/my-settlements')
@@ -133,7 +133,7 @@ export class FinancialSettlementsController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.settlementsService.getManagerSettlements(req.user.userId, { status, page, limit });
+    return this.settlementsService.getManagerSettlements(req.user.id, { status, page, limit });
   }
 
   @Get('manager/all')
@@ -163,6 +163,6 @@ export class FinancialSettlementsController {
   @ApiOperation({ summary: 'إلغاء تسوية المدير' })
   @ApiParam({ name: 'id', description: 'معرف التسوية' })
   async cancelManagerSettlement(@Request() req, @Param('id') id: string) {
-    return this.settlementsService.cancelSettlement(id, 'manager', req.user.userId);
+    return this.settlementsService.cancelSettlement(id, 'manager', req.user.id);
   }
 }

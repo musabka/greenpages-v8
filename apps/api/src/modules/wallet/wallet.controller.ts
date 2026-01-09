@@ -79,8 +79,8 @@ export class WalletController {
     
     console.log('🎯 WalletController.payFromWallet - انتهى!', {
       success: result.success,
-      hasInvoiceId: !!result.accounting?.invoiceId,
-      invoiceId: result.accounting?.invoiceId,
+      hasInvoiceId: !!result.billing?.invoiceId,
+      invoiceId: result.billing?.invoiceId,
     });
     
     return result;

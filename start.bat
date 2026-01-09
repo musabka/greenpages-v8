@@ -30,10 +30,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3004 ^| findstr LISTENING') 
     taskkill /PID %%a /F 2>nul
 )
 
-REM Find and kill process on port 3005 (Accountant)
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3005 ^| findstr LISTENING') do (
-    taskkill /PID %%a /F 2>nul
-)
+
 REM Wait for processes to fully stop
 timeout /t 2 /nobreak >nul
 echo.
@@ -73,12 +70,6 @@ REM Start Agent Dashboard
 start "GreenPages Agent" cmd /k "cd /d %~dp0apps\agent && pnpm dev"
 echo Agent Dashboard starting on port 3004...
 
-REM Wait before starting next app
-timeout /t 2 /nobreak >nul
-
-REM Start Accountant Dashboard
-start "GreenPages Accountant" cmd /k "cd /d %~dp0apps\accountant && pnpm dev"
-echo Accountant Dashboard starting on port 3005...
 
 REM Wait for apps to initialize
 echo.

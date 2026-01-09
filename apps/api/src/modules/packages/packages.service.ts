@@ -318,10 +318,10 @@ export class PackagesService {
             // استخدام BillingService للفوترة المبسطة
             const paymentMethod = userRole === UserRole.AGENT ? 'CASH' : 'WALLET';
             
-            const invoice = await this.billingService.createInvoice({
-              userId: customerId,
+            const invoice = await this.billingService.createInvoice(createdById, {
+              customerId,
               businessId,
-              customerName,
+              customerName: customerName || 'عميل',
               customerEmail,
               customerPhone,
               invoiceType: 'SUBSCRIPTION',
@@ -338,7 +338,7 @@ export class PackagesService {
             console.log(`✅ Package invoice created: ${invoice.invoiceNumber} - Status: ${invoice.status}`);
             
             // إصدار الفاتورة
-            const issuedInvoice = await this.billingService.issueInvoice(invoice.id);
+            const issuedInvoice = await this.billingService.issueInvoice(invoice.id, createdById);
             console.log(`✅ Invoice issued - New Status: ${issuedInvoice.status}`);
             
             // تسجيل الدفع

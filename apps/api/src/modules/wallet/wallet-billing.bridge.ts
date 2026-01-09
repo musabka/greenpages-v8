@@ -66,12 +66,17 @@ export class WalletBillingBridge {
     taxId?: string;
   }): Promise<{ invoiceId: string }> {
     const {
+      userId,
+      paymentId,
+      walletId,
       walletOwnerId,
       netAmount,
       taxAmount,
       grossAmount,
       paymentType,
+      referenceId,
       referenceName,
+      governorateId,
       businessId,
       customerName,
       customerEmail,
@@ -87,23 +92,27 @@ export class WalletBillingBridge {
 
     try {
       // استخدام BillingService لإنشاء الفاتورة وتسجيل الدفع
-      const invoice = await this.billingService.recordWalletPayment({
+      const result = await this.billingService.recordWalletPayment({
         userId: walletOwnerId,
+        paymentId: paymentId,
+        walletId: walletId,
+        walletOwnerId: walletOwnerId,
+        grossAmount,
+        taxAmount,
+        netAmount,
+        paymentType,
+        referenceId: paymentId,
+        referenceName,
         businessId,
         customerName: customerName || 'عميل',
         customerEmail,
         customerPhone,
-        amount: netAmount,
-        taxAmount,
-        totalAmount: grossAmount,
-        paymentType,
-        referenceName,
       });
 
-      console.log('✅ تم إنشاء الفاتورة ودفعها:', invoice.id);
+      console.log('✅ تم إنشاء الفاتورة ودفعها:', result.invoiceId);
 
       return {
-        invoiceId: invoice.id,
+        invoiceId: result.invoiceId,
       };
     } catch (error) {
       console.error('❌ فشل في إنشاء الفاتورة:', error);

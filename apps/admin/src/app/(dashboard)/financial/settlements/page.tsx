@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   DollarSign,
   User,
@@ -12,56 +13,19 @@ import {
   Clock,
   Plus,
   FileText,
-  Search,
   Printer,
-  ArrowUpRight,
+  Building2,
+  ArrowLeft,
+  TrendingUp,
+  Receipt,
 } from 'lucide-react';
-import { formatDate, formatNumber } from '@/lib/format';
 import {
-  useAgentFinancialSettlements,
-  useCreateAgentSettlement,
-  useConfirmAgentSettlement,
-  useCancelAgentSettlement,
-  useManagerFinancialSettlements,
+  useAllManagerSettlements,
+  useManagerBalances,
+  useCreateManagerSettlement,
+  useConfirmManagerSettlement,
+  useCancelManagerSettlement,
 } from '@/lib/hooks/useFinancial';
-import { useAgentsBalances } from '@/lib/hooks/useFinancial';
-
-// Settlement Preview Component
-function SettlementPreview({ agent }: { agent: any }) {
-  if (!agent) return null;
-  
-  const pendingAmount = Number(agent.pendingAmount || 0);
-  const pendingCommissions = Number(agent.pendingCommissions || 0);
-  const netToReceive = pendingAmount - pendingCommissions;
-  
-  return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mt-4">
-      <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
-        <DollarSign className="w-5 h-5" />
-        معاينة التسوية
-      </h3>
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <p className="text-gray-600">النقد في ذمة المندوب:</p>
-          <p className="text-xl font-bold text-green-600">{pendingAmount.toLocaleString()} ل.س</p>
-        </div>
-        <div>
-          <p className="text-gray-600">العمولات المستحقة:</p>
-          <p className="text-xl font-bold text-purple-600">{pendingCommissions.toLocaleString()} ل.س</p>
-        </div>
-      </div>
-      <div className="mt-3 pt-3 border-t border-blue-200">
-        <p className="text-gray-600">صافي المبلغ الذي ستستلمه:</p>
-        <p className="text-2xl font-bold text-blue-700">{netToReceive.toLocaleString()} ل.س</p>
-      </div>
-      {pendingAmount === 0 && (
-        <div className="mt-3 p-2 bg-yellow-100 text-yellow-700 rounded text-sm">
-          ⚠️ لا يوجد مبالغ في ذمة هذا المندوب حالياً
-        </div>
-      )}
-    </div>
-  );
-}
 
 // New Settlement Modal Component
 function NewSettlementModal({
@@ -71,24 +35,28 @@ function NewSettlementModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const [agentProfileId, setAgentProfileId] = useState('');
+  const [managerId, setManagerId] = useState('');
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd] = useState('');
   const [notes, setNotes] = useState('');
-  const { data: agentsData, isLoading: loadingAgents } = useAgentsBalances({ limit: 100 });
-  const createMutation = useCreateAgentSettlement();
+  const { data: managersData, isLoading: loadingManagers } = useManagerBalances({ limit: 100 });
+  const createMutation = useCreateManagerSettlement();
 
-  const agents = agentsData?.data || [];
-  const selectedAgent = agents.find((a: any) => a.id === agentProfileId);
+  const managers = managersData?.data || [];
+  const selectedManager = managers.find((m: any) => m.id === managerId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agentProfileId) return;
+    if (!managerId || !periodStart || !periodEnd) return;
 
     createMutation.mutate(
-      { agentProfileId, notes: notes || undefined },
+      { managerId, periodStart, periodEnd, notes: notes || undefined },
       {
         onSuccess: () => {
           onClose();
-          setAgentProfileId('');
+          setManagerId('');
+          setPeriodStart('');
+          setPeriodEnd('');
           setNotes('');
         },
       }
@@ -100,37 +68,86 @@ function NewSettlementModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold text-gray-900 mb-2">تسوية مالية جديدة</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">تسوية مالية مع مدير محافظة</h2>
         <p className="text-sm text-gray-500 mb-4">
-          اختر المندوب لإنشاء تسوية مالية واستلام الأموال المحصّلة
+          اختر مدير المحافظة والفترة الزمنية لإنشاء تسوية مالية
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              اختر المندوب
+              مدير المحافظة
             </label>
-            {loadingAgents ? (
-              <div className="text-center py-4 text-gray-500">جاري تحميل المندوبين...</div>
+            {loadingManagers ? (
+              <div className="text-center py-4 text-gray-500">جاري تحميل المدراء...</div>
             ) : (
               <select
-                value={agentProfileId}
-                onChange={(e) => setAgentProfileId(e.target.value)}
-                className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                value={managerId}
+                onChange={(e) => setManagerId(e.target.value)}
+                className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
               >
-                <option value="">-- اختر المندوب --</option>
-                {agents.map((agent: any) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.user?.firstName} {agent.user?.lastName} - {Number(agent.pendingAmount || 0).toLocaleString()} ل.س
+                <option value="">-- اختر مدير المحافظة --</option>
+                {managers.map((manager: any) => (
+                  <option key={manager.id} value={manager.id}>
+                    {manager.user?.firstName} {manager.user?.lastName} - {manager.governorate?.nameAr}
                   </option>
                 ))}
               </select>
             )}
           </div>
 
-          {/* Settlement Preview */}
-          <SettlementPreview agent={selectedAgent} />
+          {selectedManager && (
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
+                <Building2 className="w-5 h-5" />
+                معلومات المدير
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600">المحافظة:</p>
+                  <p className="font-bold text-gray-900">{selectedManager.governorate?.nameAr}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">نسبة الشركة:</p>
+                  <p className="font-bold text-gray-900">{selectedManager.companyCommissionRate}%</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">الرصيد الحالي:</p>
+                  <p className="font-bold text-green-600">
+                    {Number(selectedManager.balance || 0).toLocaleString()} ل.س
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                بداية الفترة
+              </label>
+              <input
+                type="date"
+                value={periodStart}
+                onChange={(e) => setPeriodStart(e.target.value)}
+                className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                نهاية الفترة
+              </label>
+              <input
+                type="date"
+                value={periodEnd}
+                onChange={(e) => setPeriodEnd(e.target.value)}
+                className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -140,7 +157,7 @@ function NewSettlementModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
               placeholder="أضف ملاحظات على هذه التسوية..."
             />
           </div>
@@ -154,8 +171,8 @@ function NewSettlementModal({
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              disabled={createMutation.isPending || !agentProfileId}
-              className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              disabled={createMutation.isPending || !managerId || !periodStart || !periodEnd}
+              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <Plus className="w-5 h-5" />
               {createMutation.isPending ? 'جاري الإنشاء...' : 'إنشاء التسوية'}
@@ -174,41 +191,37 @@ function NewSettlementModal({
   );
 }
 
-export default function ManagerSettlementsPage() {
+export default function AdminSettlementsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'agent' | 'admin'>('agent');
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string>('');
-  const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
 
-  // Agent settlements (manager receives from agents)
-  const { data: agentData, isLoading: loadingAgent } = useAgentFinancialSettlements({
+  const { data: settlementsData, isLoading } = useAllManagerSettlements({
     page,
     limit: 20,
     status: status || undefined,
   });
 
-  // Manager settlements (manager delivers to admin)
-  const { data: adminData, isLoading: loadingAdmin } = useManagerFinancialSettlements({
-    page,
-    limit: 20,
-    status: status || undefined,
-  });
+  const confirmMutation = useConfirmManagerSettlement();
+  const cancelMutation = useCancelManagerSettlement();
 
-  const confirmMutation = useConfirmAgentSettlement();
-  const cancelMutation = useCancelAgentSettlement();
+  const settlements = settlementsData?.data || [];
+  const total = settlementsData?.meta?.total || 0;
+  const totalPages = settlementsData?.meta?.totalPages || 1;
 
-  const settlements = activeTab === 'agent' 
-    ? (agentData?.data || [])
-    : (adminData?.data || []);
-  const total = activeTab === 'agent'
-    ? (agentData?.meta?.total || 0)
-    : (adminData?.meta?.total || 0);
-  const totalPages = activeTab === 'agent'
-    ? (agentData?.meta?.totalPages || 1)
-    : (adminData?.meta?.totalPages || 1);
-  const isLoading = activeTab === 'agent' ? loadingAgent : loadingAdmin;
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('ar-SY', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const formatNumber = (num: number) => {
+    return (num || 0).toLocaleString('ar-SY');
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -216,7 +229,6 @@ export default function ManagerSettlementsPage() {
         return 'text-green-600 bg-green-100';
       case 'DRAFT':
         return 'text-gray-600 bg-gray-100';
-      case 'PENDING_AGENT':
       case 'PENDING_MANAGER':
       case 'PENDING_ADMIN':
         return 'text-yellow-600 bg-yellow-100';
@@ -231,12 +243,10 @@ export default function ManagerSettlementsPage() {
     switch (status) {
       case 'DRAFT':
         return 'مسودة';
-      case 'PENDING_AGENT':
-        return 'بانتظار المندوب';
       case 'PENDING_MANAGER':
         return 'بانتظار المدير';
       case 'PENDING_ADMIN':
-        return 'بانتظار الإدارة';
+        return 'بانتظار التأكيد';
       case 'CONFIRMED':
         return 'مؤكدة';
       case 'CANCELLED':
@@ -259,85 +269,63 @@ export default function ManagerSettlementsPage() {
     }
   };
 
+  // Calculate summary
+  const confirmedSettlements = settlements.filter((s: any) => s.status === 'CONFIRMED');
+  const pendingSettlements = settlements.filter((s: any) => 
+    s.status === 'PENDING_MANAGER' || s.status === 'PENDING_ADMIN'
+  );
+  const totalConfirmedAmount = confirmedSettlements.reduce(
+    (sum: number, s: any) => sum + Number(s.amountDelivered || 0), 0
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">التسويات المالية</h1>
-          <p className="text-gray-500">إدارة التسويات مع المندوبين والإدارة</p>
-        </div>
-        {activeTab === 'agent' && (
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+        <div className="flex items-center gap-4">
+          <Link
+            href="/dashboard/financial"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <Plus className="w-5 h-5" />
-            تسوية جديدة
-          </button>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 border-b">
-        <button
-          onClick={() => { setActiveTab('agent'); setPage(1); setStatus(''); }}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'agent'
-              ? 'text-green-600 border-b-2 border-green-600'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <User className="w-4 h-4" />
-            تسويات المندوبين
-          </div>
-        </button>
-        <button
-          onClick={() => { setActiveTab('admin'); setPage(1); setStatus(''); }}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'admin'
-              ? 'text-green-600 border-b-2 border-green-600'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <ArrowUpRight className="w-4 h-4" />
-            تسوياتي مع الإدارة
-          </div>
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[200px]">
-          <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث برقم التسوية..."
-              className="w-full pr-10 pl-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-            />
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">تسويات مدراء المحافظات</h1>
+            <p className="text-gray-500">إدارة التسويات المالية مع مدراء المحافظات</p>
           </div>
         </div>
-        <select
-          value={status}
-          onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-          className="border rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500"
+        <button
+          onClick={() => setShowNewModal(true)}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
-          <option value="">كل الحالات</option>
-          <option value="DRAFT">مسودة</option>
-          <option value="PENDING_MANAGER">بانتظار المدير</option>
-          <option value="PENDING_ADMIN">بانتظار الإدارة</option>
-          <option value="CONFIRMED">مؤكدة</option>
-          <option value="CANCELLED">ملغية</option>
-        </select>
+          <Plus className="w-5 h-5" />
+          تسوية جديدة
+        </button>
+      </div>
+
+      {/* Info Box */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-blue-600 rounded-xl">
+            <Receipt className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-blue-900 mb-2">ما هي تسوية مدير المحافظة؟</h3>
+            <p className="text-sm text-blue-800">
+              التسوية المالية هي عملية تصفية حساب بين الشركة ومدير المحافظة. تشمل:
+            </p>
+            <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
+              <li>استلام حصة الشركة من إيرادات المحافظة</li>
+              <li>احتساب عمولات المندوبين المدفوعة</li>
+              <li>تحديد صافي ربح مدير المحافظة</li>
+              <li>توثيق التسوية كوثيقة رسمية</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -357,11 +345,7 @@ export default function ManagerSettlementsPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">بانتظار التأكيد</p>
-              <p className="text-xl font-bold text-gray-900">
-                {settlements.filter((s: any) => 
-                  s.status === 'PENDING_MANAGER' || s.status === 'PENDING_ADMIN'
-                ).length}
-              </p>
+              <p className="text-xl font-bold text-gray-900">{pendingSettlements.length}</p>
             </div>
           </div>
         </div>
@@ -369,41 +353,60 @@ export default function ManagerSettlementsPage() {
         <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="w-5 h-5 text-green-600" />
+              <CheckCircle className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">إجمالي المبالغ المؤكدة</p>
-              <p className="text-xl font-bold text-gray-900">
-                {formatNumber(
-                  settlements
-                    .filter((s: any) => s.status === 'CONFIRMED')
-                    .reduce((sum: number, s: any) => sum + Number(s.totalAmount || 0), 0)
-                )}{' '}
-                ل.س
-              </p>
+              <p className="text-sm text-gray-500">تسويات مؤكدة</p>
+              <p className="text-xl font-bold text-gray-900">{confirmedSettlements.length}</p>
             </div>
           </div>
         </div>
+
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <TrendingUp className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">إجمالي المُستلم</p>
+              <p className="text-xl font-bold text-gray-900">{formatNumber(totalConfirmedAmount)} ل.س</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-4">
+        <select
+          value={status}
+          onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+          className="border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">كل الحالات</option>
+          <option value="DRAFT">مسودة</option>
+          <option value="PENDING_MANAGER">بانتظار المدير</option>
+          <option value="PENDING_ADMIN">بانتظار التأكيد</option>
+          <option value="CONFIRMED">مؤكدة</option>
+          <option value="CANCELLED">ملغية</option>
+        </select>
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : settlements.length === 0 ? (
           <div className="text-center py-12">
             <DollarSign className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">لا توجد تسويات</p>
-            {activeTab === 'agent' && (
-              <button
-                onClick={() => setShowNewModal(true)}
-                className="mt-4 text-green-600 hover:text-green-700 font-medium"
-              >
-                إنشاء تسوية جديدة
-              </button>
-            )}
+            <button
+              onClick={() => setShowNewModal(true)}
+              className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+            >
+              إنشاء تسوية جديدة
+            </button>
           </div>
         ) : (
           <>
@@ -415,10 +418,13 @@ export default function ManagerSettlementsPage() {
                       رقم التسوية
                     </th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">
-                      {activeTab === 'agent' ? 'المندوب' : 'المستلم'}
+                      المدير / المحافظة
                     </th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">
-                      المبلغ
+                      الفترة
+                    </th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">
+                      المبلغ المستلم
                     </th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">
                       الحالة
@@ -439,30 +445,30 @@ export default function ManagerSettlementsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <User className="w-5 h-5 text-gray-400" />
+                          <Building2 className="w-5 h-5 text-gray-400" />
                           <div>
                             <p className="font-medium text-gray-900">
-                              {activeTab === 'agent'
-                                ? settlement.agentName
-                                : settlement.receiverName || '-'}
+                              {settlement.managerName || settlement.governorateManager?.user?.firstName}
                             </p>
                             <p className="text-sm text-gray-500">
-                              {activeTab === 'agent'
-                                ? settlement.agentPhone
-                                : settlement.receiverPhone || '-'}
+                              {settlement.governorateName || settlement.governorateManager?.governorate?.nameAr}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-bold text-gray-900">
-                          {formatNumber(settlement.totalAmount || 0)} ل.س
+                        <div className="text-sm">
+                          <p className="text-gray-900">{formatDate(settlement.periodStart)}</p>
+                          <p className="text-gray-500">إلى {formatDate(settlement.periodEnd)}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-bold text-green-600">
+                          {formatNumber(settlement.amountDelivered || 0)} ل.س
                         </p>
-                        {activeTab === 'agent' && settlement.agentCommissionAmount > 0 && (
-                          <p className="text-xs text-green-600">
-                            عمولة: {formatNumber(settlement.agentCommissionAmount)} ل.س
-                          </p>
-                        )}
+                        <p className="text-xs text-gray-500">
+                          حصة الشركة: {formatNumber(settlement.companyShareAmount || 0)} ل.س
+                        </p>
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -497,7 +503,7 @@ export default function ManagerSettlementsPage() {
                               <Printer className="w-4 h-4 text-gray-600" />
                             </button>
                           )}
-                          {activeTab === 'agent' && settlement.status === 'PENDING_MANAGER' && (
+                          {(settlement.status === 'PENDING_MANAGER' || settlement.status === 'PENDING_ADMIN') && (
                             <>
                               <button
                                 onClick={() => handleConfirm(settlement.id)}
